@@ -882,7 +882,7 @@ app.whenReady().then(() => {
   }})
   videoModeLauncher=createVideoModeLauncher({
     openAd:key=>{
-      if(!Object.hasOwn(AD_MODES,key))throw new Error(`${key} 广告模式尚未接入`)
+      if(!Object.hasOwn(AD_MODES,key))throw new Error('不支持的广告模式')
       return openSite(key)
     },
     openOpacity:key=>openSite(key),

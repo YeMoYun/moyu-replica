@@ -1,6 +1,31 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { createVideoModeLauncher } from '../src/main/video-mode-launcher.mjs'
+import { VIDEO_PLATFORM_ORDER } from '../src/shared/video-platforms.mjs'
+
+test('launcher dispatches every registered video platform to its advertisement key', () => {
+  const opened = []
+  const launcher = createVideoModeLauncher({
+    openAd: (key) => opened.push(key),
+    openOpacity: () => {},
+    openChat: () => {},
+    readRecent: () => undefined,
+    writeRecent: () => {}
+  })
+
+  for (const platform of VIDEO_PLATFORM_ORDER) launcher.open(platform, 'ad')
+
+  assert.deepEqual(opened, VIDEO_PLATFORM_ORDER)
+})
+
+test('main launcher accepts every registered advertisement key', () => {
+  const source = readFileSync(new URL('../src/main/index.js', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(source, /广告模式尚未接入/)
+  assert.match(source, /Object\.hasOwn\(AD_MODES,key\)/)
+  assert.match(source, /return openSite\(key\)/)
+})
 
 test('launcher delegates resolved targets and records successful chat platform only', () => {
   const calls = []
