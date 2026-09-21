@@ -95,7 +95,7 @@ test('owned fit CSS is idempotent, scoped and preserves internal vertical scroll
 })
 test('shared homepage entry preserves every dedicated transparent route and controller',()=>{
   const home=fs.readFileSync(new URL('../src/renderer/src/views/HomeView.vue',import.meta.url),'utf8')
-  assert.match(home,/VIDEO_PLATFORM_ORDER/);assert.match(home,/videoModeControl\.open/)
+  assert.match(home,/VIDEO_PLATFORM_ORDER/);assert.match(home,/callBridge\(window\.videoModeControl, 'open'/)
   assert.doesNotMatch(home,/抖音透明化|B站透明化|虎牙透明化|快手透明化/)
   const router=fs.readFileSync(new URL('../src/renderer/src/router/index.js',import.meta.url),'utf8')
   for(const route of ['bilibiliOpacity','huyaOpacity','kuaishouOpacity'])assert.match(router,new RegExp(`path: '/${route}'.*VideoOpacityView.vue`))

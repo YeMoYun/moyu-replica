@@ -99,6 +99,6 @@ test('opacity route retains dedicated controls behind the shared home entry inde
   const platforms=fs.readFileSync(new URL('../src/shared/video-platforms.mjs',import.meta.url),'utf8')
   assert.match(platforms,/douyin:define\([^\n]*'douyinOpacity'\)/)
   const home=fs.readFileSync(new URL('../src/renderer/src/views/HomeView.vue',import.meta.url),'utf8')
-  assert.match(home,/VIDEO_PLATFORM_ORDER/);assert.match(home,/videoModeControl\.open/)
+  assert.match(home,/VIDEO_PLATFORM_ORDER/);assert.match(home,/callBridge\(window\.videoModeControl, 'open'/)
   assert.doesNotMatch(home,/抖音透明化/)
 })
