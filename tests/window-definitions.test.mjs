@@ -1,0 +1,23 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+const { SITE_ROUTES } = await import('../src/main/window-definitions.mjs').catch((e) => {
+  if (e.code === 'ERR_MODULE_NOT_FOUND') return {}
+  throw e
+})
+test('window entry options match the source geometry and native frame distinctions', () => {
+  assert.ok(SITE_ROUTES, 'window definitions must exist')
+  assert.deepEqual([SITE_ROUTES.web.width,SITE_ROUTES.web.height,SITE_ROUTES.web.transparent], [1200,800,true])
+  assert.deepEqual([SITE_ROUTES.douyin.width,SITE_ROUTES.douyin.height,SITE_ROUTES.douyin.rightBottom],[286,420,true])
+  assert.deepEqual([SITE_ROUTES.keyword.width,SITE_ROUTES.keyword.height],[600,920])
+  assert.equal(SITE_ROUTES.wechatConfig.frame,true)
+  assert.equal(SITE_ROUTES.dingdingConfig.frame,true)
+  assert.equal(SITE_ROUTES.testPierce.transparent,true)
+  assert.equal(SITE_ROUTES.testPierce.alwaysOnTop,true)
+  assert.equal(SITE_ROUTES.wechat.alwaysOnTop,undefined)
+})
+test('all managed route variants including ad readers have explicit sizes', () => {
+  assert.ok(SITE_ROUTES)
+  for (const key of ['weReadAd','bookReaderAd','localVideoOpacity','bookReader']) {
+    assert.ok(SITE_ROUTES[key].width>0); assert.ok(SITE_ROUTES[key].height>0)
+  }
+})

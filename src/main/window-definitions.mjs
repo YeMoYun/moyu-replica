@@ -1,0 +1,43 @@
+// Defaults verified against the reference window constructors, not renderer viewport sizes.
+const definition = (route, width, height, options = {}) => ({ route, width, height, frame: false, skipTaskbar: true, ...options })
+const transparent = { transparent: true }
+const smallAd = { ...transparent, alwaysOnTop: true, rightBottom: true }
+export const SITE_ROUTES = {
+  web: definition('/web',1200,800,transparent),
+  testPierce: definition('/testPierce',900,600,{...transparent,alwaysOnTop:true}),
+  customWebpage: definition('/customWebpage',1200,800,transparent),
+  readView: definition('/readView',900,750),
+  keyword: definition('/keyword',600,920),
+  wechat: definition('/wechat',980,760,{webSecurity:false}),
+  dingding: definition('/dingding',980,760,{webSecurity:false}),
+  feishu: definition('/feishu',1200,800,{webSecurity:false}),
+  wechatConfig: definition('/wechatConfig',1200,800,{frame:true,skipTaskbar:false}),
+  dingdingConfig: definition('/dingdingConfig',1200,800,{frame:true,skipTaskbar:false}),
+  douyin: definition('/douyin',286,420,smallAd),
+  douyinOpacity: definition('/douyinOpacity',500,450,transparent),
+  kuaishouOpacity: definition('/kuaishouOpacity',800,650,transparent),
+  bilibili: definition('/bilibili',1200,800),
+  bilibiliOpacity: definition('/bilibiliOpacity',1200,850,transparent),
+  huya: definition('/huya',300,450,smallAd),
+  huyaOpacity: definition('/huyaOpacity',800,650,transparent),
+  huyaControl: definition('/huyaControl',920,760),
+  douyu: definition('/douyu',300,450,smallAd),
+  douyuOpacity: definition('/douyuOpacity',800,650,transparent),
+  douyuControl: definition('/douyuControl',920,760),
+  book: definition('/book',600,350,{...transparent,alwaysOnTop:true}),
+  bookReader: definition('/bookReader',400,300,{...transparent,webSecurity:false}),
+  bookReaderAd: definition('/bookReaderAd',420,520,{webSecurity:false}),
+  weRead: definition('/weRead',400,800,transparent),
+  weReadAd: definition('/weReadAd',351,430,{alwaysOnTop:true,rightBottom:true}),
+  zhihu: definition('/zhihu',1000,650,transparent),
+  fanQue: definition('/fanQue',1250,650,transparent),
+  jinJiang: definition('/jinJiang',1250,650,transparent),
+  excel: definition('/excel',1200,600),
+  excelView: definition('/excel-view',1400,900),
+  localVideo: definition('/localVideo',286,420,{...smallAd,webSecurity:false}),
+  localVideoOpacity: definition('/localVideoOpacity',800,650,{...transparent,webSecurity:false}),
+  customWebsiteAd: definition('/customWebsiteAd',286,420,smallAd),
+  customWebsiteOpacity: definition('/customWebsiteOpacity',1000,650,transparent),
+  standaloneGameAd: definition('/standaloneGameAd',286,420,smallAd),
+  standaloneGameOpacity: definition('/standaloneGameOpacity',1000,650,transparent)
+}

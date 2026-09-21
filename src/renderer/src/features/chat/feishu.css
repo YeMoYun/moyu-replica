@@ -1,0 +1,125 @@
+.formal-feishu,.formal-feishu *{box-sizing:border-box}
+.formal-feishu{height:100vh;overflow:hidden;position:relative;padding:24px 6px 6px 0;background:radial-gradient(ellipse at 6% 35%,#d8e6ef 0,transparent 54%),linear-gradient(125deg,#e8ebee,#e4eaff 62%,#eeedf4);color:#1f2329;font:14px "Microsoft YaHei",sans-serif}
+.formal-feishu button,.formal-feishu input,.formal-feishu textarea,.formal-feishu select{font:inherit;-webkit-app-region:no-drag}
+.formal-feishu button{border:0;background:none;color:inherit;cursor:pointer}
+.formal-feishu .icon{width:18px;height:18px;display:block;flex:none}
+.formal-feishu .fs-window-tools{position:absolute;inset:0 0 auto 0;height:24px;-webkit-app-region:drag;display:flex;align-items:center;justify-content:flex-end;gap:12px;padding-right:6px;color:#515863}
+.formal-feishu .fs-window-tools button{padding:2px}
+.formal-feishu .fs-window-tools .icon{width:15px;height:15px}
+.formal-feishu .client-body{height:100%;display:flex;gap:6px;min-width:0;position:relative}
+.formal-feishu .navigation{width:176px;flex:none;padding:0 8px;display:flex;flex-direction:column;min-height:0;color:#4b535e}
+.formal-feishu .fs-account-row{display:flex;justify-content:space-between;align-items:center;height:33px;margin-bottom:16px;padding:0 4px}
+.formal-feishu .fs-account-row .avatar{width:30px;height:30px}
+.formal-feishu .fs-nav-search{height:34px;display:flex;align-items:center;gap:7px;padding:0 10px;background:#bccbd13d;border:1px solid #b9c9d96e;border-radius:8px;margin-bottom:12px;flex:none}
+.formal-feishu .fs-nav-search input{width:100%;min-width:0;border:0;outline:0;background:none;color:#4a5868;font-size:11px}
+.formal-feishu .fs-nav-items{overflow:auto;min-height:0;scrollbar-width:none;flex:1}
+.formal-feishu .nav-button{width:100%;height:37px;display:flex;align-items:center;gap:10px;padding:7px 11px;border-radius:8px;margin-bottom:1px;text-align:left;position:relative}
+.formal-feishu .nav-button .icon{width:17px;height:17px;color:#8a939d}
+.formal-feishu .nav-button.active{background:#ffffffd9;color:#1f2329}
+.formal-feishu .nav-button.active .icon{color:#3370ff}
+.formal-feishu .nav-button:hover{background:#ffffff85}
+.formal-feishu .nav-unread{margin-left:auto;background:#f54a45;color:#fff;font-size:10px;font-style:normal;width:16px;height:16px;text-align:center;line-height:16px;border-radius:50%}
+.formal-feishu .nav-separated{margin-top:12px;padding-top:10px;border-top:1px solid #b8c4d05e;border-radius:0;height:43px}
+.formal-feishu .conversation-list{width:29%;min-width:280px;flex:none;background:#fcfcfddd;border-radius:9px;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.formal-feishu .list-heading{height:45px;padding:0 16px;display:flex;align-items:center;gap:8px;font-size:16px;flex:none}
+.formal-feishu .list-heading .icon{width:17px;height:17px}
+.formal-feishu .quick-conversations{display:flex;gap:8px;padding:0 13px 12px;flex:none}
+.formal-feishu .quick-conversations button{padding:4px 5px 2px;border-radius:5px;max-width:76px;min-width:48px;display:flex;align-items:center;flex-direction:column;gap:5px;color:#737b8c;font-size:10px;overflow:hidden}
+.formal-feishu .quick-conversations button>span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.formal-feishu .quick-conversations button.selected{background:#e6edfd}
+.formal-feishu .chat-items{overflow:auto;min-height:0;flex:1}
+.formal-feishu .chat-item{height:65px;width:calc(100% - 16px);margin:2px 8px;padding:10px 8px;display:flex;align-items:center;gap:12px;border-radius:7px;text-align:left;position:relative}
+.formal-feishu .chat-item:hover{background:#edf1f8}
+.formal-feishu .chat-item.selected{background:#e4ecfc}
+.formal-feishu .avatar-wrap{position:relative;flex:none}
+.formal-feishu .avatar{width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none;background:#4479ff;color:#fff;font-size:12px;white-space:pre-line;text-align:center}
+.formal-feishu .chat-item .avatar{width:38px;height:38px}
+.formal-feishu .tone-orange{background:linear-gradient(135deg,#ff545c,#ff993f)}
+.formal-feishu .tone-purple{background:#9486ff}
+.formal-feishu .tone-green,.formal-feishu .tone-self{background:linear-gradient(145deg,#349e39,#a9d915)}
+.formal-feishu .tone-bot,.formal-feishu .fs-bot{background:#4275ff}
+.formal-feishu .fs-group{background:#fff;color:#96b600;border:1px solid #98bc00;font-size:10px;font-weight:500;line-height:1.05}
+.formal-feishu .unread{position:absolute;right:-5px;top:-5px;background:#f54a45;color:#fff;font-size:10px;font-style:normal;border-radius:10px;min-width:16px;height:16px;text-align:center;line-height:16px;padding:0 4px}
+.formal-feishu .chat-meta{min-width:0;flex:1}
+.formal-feishu .chat-meta-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+.formal-feishu .chat-name{font-size:14px;color:#343943;display:flex;align-items:center;gap:4px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.formal-feishu time,.formal-feishu .chat-meta small{font-size:11px;color:#9299a7}
+.formal-feishu .chat-meta small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.formal-feishu .fs-badge{font-size:9px;line-height:16px;padding:0 3px;background:#d2defd;color:#3370ff;border-radius:3px;font-style:normal;font-weight:400;flex:none}
+.formal-feishu .robot-badge{background:#fff2d3;color:#b98600}
+.formal-feishu .chat-panel{min-width:0;flex:1;display:flex;flex-direction:column;border-radius:9px;overflow:hidden;background:#fbfbfc;position:relative}
+.formal-feishu .chat-header{height:43px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 17px;gap:12px}
+.formal-feishu .chat-title,.formal-feishu .header-actions,.formal-feishu .fs-title-main{display:flex;align-items:center;min-width:0}
+.formal-feishu .chat-title{gap:9px}
+.formal-feishu .chat-title>.avatar{width:34px;height:34px;font-size:10px}
+.formal-feishu .fs-title-info{min-width:0}
+.formal-feishu .fs-title-main{gap:7px}
+.formal-feishu .chat-title h2{font-size:16px;font-weight:600;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.formal-feishu .fs-member-count,.formal-feishu .fs-bot-count{font-size:11px;color:#9098a5;display:flex;align-items:center;gap:3px;flex:none}
+.formal-feishu .fs-member-count .icon{width:13px;height:13px}
+.formal-feishu .fs-bot-count{border-left:1px solid #dfe2e8;padding-left:7px}
+.formal-feishu .header-actions{gap:8px;flex:none}
+.formal-feishu .header-actions button{padding:2px;color:#737b89}
+.formal-feishu .header-actions .icon{width:17px;height:17px}
+.formal-feishu .fs-assistant-icon{height:19px;width:19px;border-radius:50%;background:conic-gradient(from 25deg,#fff,#3b82ff,#21d2ff,#fff,#3970ff,#fff);box-shadow:inset 0 0 2px #308af5;flex:none}
+.formal-feishu .mobile-list{display:none}
+.formal-feishu .chat-tabs{display:flex;align-items:center;gap:7px;flex:none;height:30px;padding:0 14px 4px 59px;border-bottom:1px solid #dfe2e8;overflow-x:auto;scrollbar-width:none;min-width:0}
+.formal-feishu .chat-tabs button{display:flex;align-items:center;gap:4px;padding:4px 6px;font-size:11px;color:#303640;border-radius:5px;flex:none}
+.formal-feishu .chat-tabs button.active{background:#dbe5fd;color:#1456f0}
+.formal-feishu .chat-tabs button:hover{background:#e8edf8}
+.formal-feishu .chat-tabs .icon{width:12px;height:12px}
+.formal-feishu .group-announcement{display:flex;gap:9px;align-items:flex-start;border:1px solid #d5d9e1;border-radius:7px;margin:4px 5px 0;padding:9px 10px;background:#fff;flex:none;box-shadow:0 3px 8px #26364904;min-width:0;z-index:1}
+.formal-feishu .announcement-pin{background:#ff841f;color:#fff;border-radius:50%;width:20px;height:20px;line-height:20px;text-align:center;flex:none;font-size:16px}
+.formal-feishu .announcement-copy{min-width:0;flex:1}
+.formal-feishu .announcement-copy p{font-size:12px;margin:1px 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+.formal-feishu .announcement-copy small{font-size:10px;color:#8c95a5}
+.formal-feishu .announcement-copy small span{color:#3370ff}
+.formal-feishu .group-announcement button{align-self:center;padding:2px;color:#79818f}
+.formal-feishu .group-announcement .icon{width:17px;height:17px}
+.formal-feishu .all-messages{flex:1;min-height:0;position:relative}
+.formal-feishu .messages{position:absolute;inset:0;overflow:auto;padding:16px 20px 4px;background:#fbfbfc}
+.formal-feishu .date-line{text-align:center;color:#a3aab5;font-size:10px;margin-bottom:16px}
+.formal-feishu .message-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:18px;min-width:0}
+.formal-feishu .message-row.self{flex-direction:row-reverse}
+.formal-feishu .message-row>.avatar{width:32px;height:32px;font-size:11px}
+.formal-feishu .content-wrap{display:flex;flex-direction:column;align-items:flex-start;max-width:calc(100% - 42px);min-width:0}
+.formal-feishu .message-row.self .content-wrap{align-items:flex-end}
+.formal-feishu .sender-name{font-size:11px;color:#9199a7;margin:2px 0 7px}
+.formal-feishu .bubble{background:#edeef0;border-radius:9px;padding:11px 13px;font-size:13px;line-height:1.7;color:#282d36;white-space:pre-wrap;overflow-wrap:anywhere}
+.formal-feishu .self .bubble{background:#dbe7ff}
+.formal-feishu .read-status{color:#8e99aa;font-size:9px;padding-top:4px}
+.formal-feishu .fs-media-card{padding:12px;background:#edeef0;border-radius:9px;max-width:520px;min-width:0}
+.formal-feishu .fs-media-card b{display:block;margin-top:9px}
+.formal-feishu .fs-media-card p{font-size:11px;line-height:1.5;margin:5px 0 0;color:#576372}
+.formal-feishu .local-media-preview{height:150px;display:grid;place-items:center;background:linear-gradient(135deg,#cfd8e6,#eef1f6);border-radius:5px;color:#fff;font-size:36px}
+.formal-feishu .composer{height:52px;flex:none;border:1px solid #c4c9d2;border-radius:9px;background:#fff;display:flex;align-items:center;margin:12px 16px 16px;padding:5px 9px;gap:5px}
+.formal-feishu .composer textarea{height:30px;min-height:30px;min-width:50px;padding:5px 2px;flex:1;line-height:20px;font-size:13px;overflow:auto;resize:none;border:0;outline:0}
+.formal-feishu .composer-tools{display:flex;align-items:center;gap:5px;flex:none}
+.formal-feishu .composer-tools button{padding:3px;color:#697281;display:flex;align-items:center}
+.formal-feishu .composer-tools .icon{height:17px;width:17px}
+.formal-feishu .fs-format{font-size:17px;gap:0}
+.formal-feishu .fs-format small{font-size:12px;align-self:flex-end}
+.formal-feishu .composer-bottom{border-left:1px solid #e8eaee;padding-left:4px;flex:none}
+.formal-feishu .send-button{color:#3370ff;padding:3px;display:flex;align-items:center;justify-content:center}
+.formal-feishu .send-button:disabled{color:#b6bdc6;opacity:.8}
+.formal-feishu .send-button .icon{height:19px;width:19px;fill:currentColor}
+.formal-feishu .chat-notice{position:absolute;top:30px;left:50%;transform:translateX(-50%);z-index:20;background:#fff4d6;border:1px solid #eccb73;padding:8px 12px;border-radius:6px;box-shadow:0 6px 18px #0002}
+.formal-feishu .chat-notice button{margin-left:10px}
+.formal-feishu .dialog-scrim{position:absolute;inset:0;z-index:30;background:#0005;display:flex;align-items:center;justify-content:center}
+.formal-feishu .chat-dialog{width:min(560px,calc(100vw - 24px));max-height:90%;overflow:auto;background:#fff;border-radius:10px;box-shadow:0 14px 38px #0003}
+.formal-feishu .chat-dialog>header{display:flex;align-items:center;justify-content:space-between;padding:15px;border-bottom:1px solid #eee}
+.formal-feishu .chat-dialog h3{margin:0}
+.formal-feishu .dialog-body{display:flex;flex-direction:column;gap:12px;padding:16px}
+.formal-feishu .dialog-body label{display:flex;align-items:center;gap:10px}
+.formal-feishu .dialog-body input:not([type=range]):not([type=checkbox]),.formal-feishu .dialog-body select,.formal-feishu .json-input{flex:1;min-width:0;border:1px solid #c4c9d2;border-radius:4px;padding:7px;background:#fff}
+.formal-feishu .json-input{height:150px;font:12px monospace}
+.formal-feishu .dialog-body>button{align-self:flex-end;background:#3370ff;color:#fff;padding:7px 14px;border-radius:4px}
+.formal-feishu .config-error{color:#b33;margin:0}
+.formal-feishu.chat-startup{height:100vh;display:flex;align-items:center;justify-content:center;gap:10px;background:#eef1f6}
+.formal-feishu .chat-player{position:relative;overflow:hidden;background:#172b34;border-radius:5px}
+.formal-feishu .player-webview{display:flex;width:100%;height:100%;border:0}
+.formal-feishu .player-loading,.formal-feishu .player-feedback,.formal-feishu .player-mask,.formal-feishu .boss-cover{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;text-align:center;background:#203844;color:#fff}
+.formal-feishu .boss-cover img{width:100%;height:100%;object-fit:cover}
+@media(max-width:1000px){.formal-feishu .header-actions{gap:5px}.formal-feishu .fs-bot-count{display:none}.formal-feishu .chat-header{padding:0 12px}}
+@media(max-width:850px){.formal-feishu .navigation{width:142px;padding:0 6px}.formal-feishu .conversation-list{width:260px;min-width:260px}.formal-feishu .nav-button{padding:7px 8px;gap:8px;font-size:12px}.formal-feishu .composer{margin:10px 10px 12px}.formal-feishu .messages{padding:16px 14px 4px}.formal-feishu .composer-tools{gap:2px}.formal-feishu .fs-format{display:none}}
+@media(max-width:720px){.formal-feishu .navigation{width:46px;padding:0 3px}.formal-feishu .conversation-list{display:none;position:absolute;left:52px;top:24px;bottom:6px;width:calc(100% - 58px);min-width:0;z-index:12}.formal-feishu.show-list .conversation-list{display:flex}.formal-feishu .fs-account-row{justify-content:center;margin:2px 0 12px}.formal-feishu .fs-account-row>button,.formal-feishu .fs-nav-search{display:none}.formal-feishu .nav-button{width:38px;padding:8px;justify-content:center;gap:0}.formal-feishu .nav-button span,.formal-feishu .nav-unread{display:none}.formal-feishu .mobile-list{display:block}.formal-feishu .chat-title>.avatar,.formal-feishu .fs-member-count,.formal-feishu .fs-title-main>.fs-badge,.formal-feishu .header-actions .optional-action,.formal-feishu .fs-assistant-icon{display:none}.formal-feishu .chat-tabs{padding-left:7px;gap:3px}.formal-feishu .group-announcement{padding:7px;gap:6px}.formal-feishu .messages{padding:12px 9px 4px}.formal-feishu .message-row{gap:7px}.formal-feishu .content-wrap{max-width:calc(100% - 37px)}.formal-feishu .composer{height:52px;padding:5px 6px;margin:8px 6px 10px;gap:1px}.formal-feishu .composer-tools{gap:0}.formal-feishu .composer-tools .optional-action{display:none}.formal-feishu .composer textarea{font-size:12px}}

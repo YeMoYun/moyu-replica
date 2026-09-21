@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;background:white;color:#222;font:18px sans-serif}#app{padding:18px}.scroll-content{height:420px;overflow-y:auto;border:1px solid #ddd}.reader-toolbar{position:fixed;right:25px;top:80px;display:flex;flex-direction:column;gap:10px}.reader-toolbar button{padding:10px}#reader_setting_panel{display:none}.muye-reader-content,.noveltext{line-height:2;padding:20px}.muye-reader-btns{margin:20px}select,button,a{cursor:pointer}#reader_setting_panel{background:#eee;padding:20px}
+</style></head><body><div id="app"></div><script>
+const fan=location.hostname==='fanqienovel.com',root=document.getElementById('app');
+root.innerHTML=fan?'<h2>番茄：章节正文测试</h2><div class="muye-reader"><div class="scroll-content"><div class="muye-reader-content"></div></div><div class="reader-toolbar"><button>目录</button><button>字体</button><button>背景</button></div><div class="muye-reader-btns"><a href="/reader/124" target="_blank">下一章</a></div></div>':'<h2>晋江：章节正文测试</h2><div class="novelbody"><div class="scroll-content" id="showcontent"><div class="noveltext"></div></div><select id="chapter_list"><option>第一章</option><option>第二章</option></select><a id="chapter_prev_link" href="/onebook.php?novelid=1&chapterid=1">上一章</a><a id="chapter_next_link" href="/onebook.php?novelid=1&chapterid=3" target="_blank">下一章</a><div id="reader_setting_panel" aria-hidden="true"><button>字体</button><button>背景</button></div></div>';
+root.querySelector(fan?'.muye-reader-content':'.noveltext').innerHTML=Array.from({length:160},(_,i)=>'<p>第 '+i+' 行：真实正文滚动容器。细节验证，支持缓慢滚动。</p>').join('');
+// Simulates delegated source-site handlers: must still reach the original root.
+root.addEventListener('click',e=>{if(e.target.tagName==='BUTTON')document.body.dataset.clicked=e.target.textContent});
+window.originalDOM=root.innerHTML;
+</script></body></html>

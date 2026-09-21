@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><title>微信读书本地交互测试页</title>
+<style>
+html,body{margin:0;background:#fff;color:#222;font:16px/1.8 "Microsoft YaHei",sans-serif}
+.readerChapterContent{padding:12px 20px;background:#fff}
+.readerControls{position:fixed;right:0;top:50%;display:none;background:white}
+.readerControls button{border:0;background:#fff;border-radius:50%;width:38px;height:38px;font-size:13px;cursor:pointer;padding:0}
+.readerControls_item{position:relative}
+.wr_tooltip_item{position:absolute;display:none;white-space:nowrap;font-size:12px;background:#fff;padding:2px 4px;color:#222}
+.readerControls_item:hover .wr_tooltip_item{display:block}
+.wr_tooltip_item--right{left:100%;top:0}.wr_tooltip_item--top{bottom:100%;left:0}
+</style></head><body class="wr_whiteTheme">
+<div class="readerChapterContent"><h3>本地阅读交互验证</h3><div id="paragraphs"></div></div>
+<div id="original-controls-parent"><span id="before-controls"></span><div class="readerControls" style="position:fixed;display:none;opacity:0.8;">
+<div class="readerControls_item" style="display:none;opacity:0.7;"><button onclick="document.body.dataset.controlClicked='目录'">☰</button><span class="wr_tooltip_item wr_tooltip_item--right" style="color:blue;" data-wr-tip-moved="original">目录</span></div>
+<div class="readerControls_item" style="visibility:hidden;"><button onclick="document.body.dataset.controlClicked='字体'">A↕</button></div>
+<div class="readerControls_item"><button onclick="document.body.dataset.controlClicked='笔记'">✎</button></div>
+<div class="readerControls_item"><button onclick="document.body.dataset.controlClicked='模式'">▤</button></div>
+<div class="readerControls_item"><button onclick="document.body.dataset.controlClicked='样式'">A</button></div>
+<div class="readerControls_item"><button onclick="document.body.dataset.controlClicked='夜间'">☾</button></div>
+</div><span id="after-controls"></span></div>
+<script>
+document.getElementById('paragraphs').innerHTML=Array.from({length:90},(_,i)=>`<p>第 ${i+1} 段：这是用于验证透明背景、真实网页按钮和自动滚动的本地测试内容，不是线上书籍。窗口隐藏后应暂停滚动，恢复后保持之前的阅读设置。</p>`).join('');
+window.originalControls=document.querySelector('.readerControls').outerHTML;
+</script></body></html>

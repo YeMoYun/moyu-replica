@@ -1,0 +1,88 @@
+.formal-dingtalk,.formal-dingtalk *{box-sizing:border-box}
+.formal-dingtalk{height:100vh;overflow:hidden;background:#fff;color:#222;font:14px "Microsoft YaHei",sans-serif;position:relative}
+.formal-dingtalk button{font:inherit;border:0;background:none;cursor:pointer;color:inherit}
+.formal-dingtalk .top-bar{height:35px;background:#0789f5;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 18px;-webkit-app-region:drag}
+.formal-dingtalk .top-bar button,.formal-dingtalk .top-bar label,.formal-dingtalk .top-bar input{-webkit-app-region:no-drag}
+.formal-dingtalk .top-account,.formal-dingtalk .top-bar label{display:flex;align-items:center;gap:10px}
+.formal-dingtalk .top-bar label{width:300px;background:#42a5f5;border-radius:5px;padding:3px 10px}
+.formal-dingtalk .top-bar input{width:100%;border:0;outline:0;background:transparent;color:white}
+.formal-dingtalk .top-bar input::placeholder{color:#e5f3ff}
+.formal-dingtalk .ding-logo{background:white;color:#0789f5;border-radius:5px;padding:3px}
+.formal-dingtalk .client-body{height:calc(100% - 35px);display:flex;min-width:0}
+.formal-dingtalk .navigation{width:120px;flex:none;background:#f7f8fa;padding:15px 12px;display:flex;flex-direction:column;gap:5px}
+.formal-dingtalk .navigation button{height:50px;display:flex;align-items:center;gap:14px;padding:0 12px;border-radius:6px}
+.formal-dingtalk .navigation button.active{background:#fff;color:#0789f5}
+.formal-dingtalk .nav-glyph{font-size:20px}
+.formal-dingtalk .nav-space{flex:1}
+.formal-dingtalk .conversation-list{width:250px;flex:none;border-right:1px solid #ddd;background:#fff}
+.formal-dingtalk .list-heading{height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 15px;border-bottom:1px solid #eee}
+.formal-dingtalk .chat-items{overflow:auto;height:calc(100% - 50px)}
+.formal-dingtalk .chat-item{width:100%;height:82px;display:flex;align-items:center;gap:12px;text-align:left;padding:10px 14px;position:relative}
+.formal-dingtalk .chat-item.selected{background:#e9edf2}
+.formal-dingtalk .chat-meta{min-width:0;flex:1}
+.formal-dingtalk .chat-meta>span{display:flex;justify-content:space-between}
+.formal-dingtalk time,.formal-dingtalk small,.formal-dingtalk .chat-meta small{font-size:12px;color:#999}
+.formal-dingtalk .chat-meta small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:7px}
+.formal-dingtalk .chat-item i{position:absolute;left:43px;top:5px;background:#e74845;color:white;border-radius:10px;font-style:normal;font-size:11px;padding:1px 5px}
+.formal-dingtalk .avatar{width:44px;height:44px;border-radius:6px;color:#fff;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.formal-dingtalk .tone-blue{background:#5792b2}
+.formal-dingtalk .tone-green,.formal-dingtalk .tone-self{background:#679b77}
+.formal-dingtalk .tone-purple{background:#8d7ab1}
+.formal-dingtalk .tone-orange{background:#bf8749}
+.formal-dingtalk .tone-file{background:#62a784}
+.formal-dingtalk .chat-panel{min-width:0;flex:1;display:flex;flex-direction:column;position:relative;background:#fafafa}
+.formal-dingtalk .chat-header{height:50px;flex:none;background:#fff;border-bottom:1px solid #ddd;display:flex;align-items:center;justify-content:space-between;padding:0 15px}
+.formal-dingtalk .chat-title,.formal-dingtalk .header-actions{display:flex;align-items:center;gap:12px}
+.formal-dingtalk .chat-title .avatar{width:36px;height:36px}
+.formal-dingtalk h2{font-size:17px;margin:0}
+.formal-dingtalk .header-actions button{width:34px;height:34px}
+.formal-dingtalk .more-menu{position:absolute;right:45px;top:48px;z-index:8;background:#fff;border:1px solid #ddd;box-shadow:0 6px 20px #0002;border-radius:6px;padding:5px}
+.formal-dingtalk .more-menu button{display:block;width:150px;padding:9px;text-align:left}
+.formal-dingtalk .all-messages{flex:1;min-height:0;position:relative}
+.formal-dingtalk .messages{position:absolute;inset:0;overflow:auto;padding:18px}
+.formal-dingtalk .date-line{text-align:center;color:#aaa;font-size:12px;margin-bottom:18px}
+.formal-dingtalk .message-row{display:flex;gap:10px;margin:16px 0;align-items:flex-start}
+.formal-dingtalk .message-row.self{flex-direction:row-reverse}
+.formal-dingtalk .message-row .avatar{width:42px;height:42px}
+.formal-dingtalk .content-wrap{max-width:72%;display:flex;flex-direction:column}
+.formal-dingtalk .self .content-wrap{align-items:flex-end}
+.formal-dingtalk .sender-name,.formal-dingtalk .read-state{color:#999;font-size:11px;margin:2px 4px}
+.formal-dingtalk .bubble{padding:11px 15px;border-radius:6px;background:#fff;box-shadow:0 1px 2px #0001;white-space:pre-wrap;word-break:break-word}
+.formal-dingtalk .self .bubble{background:#ccecff}
+.formal-dingtalk .composer{height:200px;flex:none;background:#fff;border:1px solid #ddd;border-radius:12px;margin:0 12px 12px;display:flex;flex-direction:column}
+.formal-dingtalk .composer-tools{height:48px;display:flex;align-items:center;padding:0 16px;gap:14px}
+.formal-dingtalk .composer-tools>span{flex:1}
+.formal-dingtalk .composer-tools button{width:26px}
+.formal-dingtalk .message-input{flex:1;border:0;outline:0;resize:none;padding:0 18px;font:16px inherit}
+.formal-dingtalk .composer-bottom{height:45px;display:flex;align-items:center;justify-content:flex-end;gap:15px;padding:0 16px;color:#999;font-size:12px}
+.formal-dingtalk .composer-bottom button{border:1px solid #d8eafa;color:#0789f5;border-radius:4px;padding:7px 18px}
+.formal-dingtalk .composer-bottom button:disabled{opacity:.4}
+.formal-dingtalk .mobile-list{display:none}
+.formal-dingtalk .chat-notice{position:absolute;top:45px;left:50%;transform:translateX(-50%);z-index:20;background:#fff4d6;border:1px solid #eccb73;padding:8px 12px;border-radius:6px}
+.formal-dingtalk .dialog-scrim{position:absolute;inset:0;z-index:30;background:#0005;display:flex;align-items:center;justify-content:center}
+.formal-dingtalk .chat-dialog{width:480px;max-height:90%;overflow:auto;background:#fff;border-radius:10px}
+.formal-dingtalk .chat-dialog>header{display:flex;justify-content:space-between;padding:15px;border-bottom:1px solid #eee}
+.formal-dingtalk .chat-dialog h3{margin:0}
+.formal-dingtalk .dialog-body{display:flex;flex-direction:column;gap:12px;padding:16px}
+.formal-dingtalk .dialog-body label{display:flex;align-items:center;gap:10px}
+.formal-dingtalk .dialog-body input:not([type=range]):not([type=checkbox]),.formal-dingtalk .dialog-body select,.formal-dingtalk .json-input{flex:1;min-width:0;border:1px solid #ccc;padding:7px}
+.formal-dingtalk .json-input{height:140px;font:12px monospace}
+.formal-dingtalk .dialog-body>button{align-self:flex-end;background:#0789f5;color:#fff;padding:7px 14px;border-radius:4px}
+.formal-dingtalk .config-error{color:#b33}
+.formal-dingtalk.chat-startup,.formal-dingtalk .chat-startup{height:100vh;display:flex;align-items:center;justify-content:center;gap:10px}
+.formal-dingtalk .chat-player{position:relative;overflow:hidden;background:#172b34;border-radius:5px}
+.formal-dingtalk .player-webview{display:flex;width:100%;height:100%;border:0}
+.formal-dingtalk .player-loading,.formal-dingtalk .player-feedback,.formal-dingtalk .player-mask,.formal-dingtalk .boss-cover{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;text-align:center;background:#203844;color:#fff}
+.formal-dingtalk .boss-cover img{width:100%;height:100%;object-fit:cover}
+@media(max-width:720px){.formal-dingtalk .top-bar label{width:180px}
+.formal-dingtalk .navigation{width:72px;padding:10px 6px}
+.formal-dingtalk .navigation button{font-size:0;justify-content:center}
+.formal-dingtalk .nav-glyph{font-size:20px}
+.formal-dingtalk .conversation-list{display:none;position:absolute;left:72px;top:35px;bottom:0;z-index:12}
+.formal-dingtalk.show-list .conversation-list{display:block}
+.formal-dingtalk .mobile-list{display:block}
+.formal-dingtalk .composer{height:150px}
+.formal-dingtalk .optional-action{display:none}
+}
+
+
