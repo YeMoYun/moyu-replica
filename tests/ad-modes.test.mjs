@@ -1,7 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { compileScript, parse } from '@vue/compiler-sfc'
+import { Window } from 'happy-dom'
 const modulePath = '../src/shared/ad-modes.mjs'
 const shared = () => import(modulePath)
 
@@ -137,4 +141,80 @@ test('all five advertisement routes use the dedicated compact video view',()=>{
     assert.match(route,new RegExp(`meta: \\{ site: '${path}', mode: 'ad' \\}`))
   }
   assert.match(routeFor('douyuOpacity'),/SiteView\.vue/)
+})
+
+test('compact video view passes each trusted route site to its matching ad page',async()=>{
+  const projectRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..')
+  const componentPath=resolve(projectRoot,'src/renderer/src/views/VideoAdView.vue')
+  const cacheDirectory=resolve(projectRoot,'node_modules/.cache/moyu-tests')
+  const suffix=`${process.pid}-${Date.now()}`
+  const compiledPath=resolve(cacheDirectory,`VideoAdView-${suffix}.mjs`)
+  const routerStubPath=resolve(cacheDirectory,`VideoAdRouter-${suffix}.mjs`)
+  const pageStubPath=resolve(cacheDirectory,`VideoAdPage-${suffix}.mjs`)
+  const window=new Window({url:'http://localhost/'})
+  const previous={}
+  for(const [name,value] of Object.entries({window,document:window.document,navigator:window.navigator,history:window.history,location:window.location,Node:window.Node,Element:window.Element,HTMLElement:window.HTMLElement,SVGElement:window.SVGElement,Event:window.Event,MouseEvent:window.MouseEvent,MutationObserver:window.MutationObserver,getComputedStyle:window.getComputedStyle.bind(window)})){
+    previous[name]=Object.getOwnPropertyDescriptor(globalThis,name)
+    Object.defineProperty(globalThis,name,{configurable:true,writable:true,value})
+  }
+  try{
+    const source=readFileSync(componentPath,'utf8')
+    const {descriptor,errors}=parse(source,{filename:componentPath})
+    assert.deepEqual(errors,[])
+    const compiled=compileScript(descriptor,{id:'video-ad-view-test',inlineTemplate:true,templateOptions:{compilerOptions:{isCustomElement:tag=>tag==='webview'}}})
+    mkdirSync(cacheDirectory,{recursive:true})
+    writeFileSync(routerStubPath,"export const useRoute=()=>({meta:globalThis.__VIDEO_AD_ROUTE_META__})\n",'utf8')
+    writeFileSync(pageStubPath,`import {reactive,ref} from 'vue'
+export function useAdPage(kind){
+  globalThis.__VIDEO_AD_PAGE_CALLS__.push(kind)
+  return {api:{expand:async()=>{},close:async()=>{}},wv:ref(null),initialized:ref(false),initialAddress:ref(''),error:ref(''),pending:ref(0),state:reactive({skin:0,ready:false}),native:reactive({expanded:false,covered:false}),perform:fn=>fn(),domReady:()=>{},navigation:()=>{},failed:()=>{},update:()=>{},action:()=>{},toTransparent:()=>{}}
+}`,'utf8')
+    const routerUrl=pathToFileURL(routerStubPath).href
+    const pageUrl=pathToFileURL(pageStubPath).href
+    const platformUrl=pathToFileURL(resolve(projectRoot,'src/shared/video-platforms.mjs')).href
+    const content=compiled.content
+      .replace(/from ['"]vue-router['"]/,`from '${routerUrl}'`)
+      .replace(/from ['"]\.\.\/features\/ad-modes\/use-ad-page\.mjs['"]/,`from '${pageUrl}'`)
+      .replace(/from ['"]\.\.\/\.\.\/\.\.\/shared\/video-platforms\.mjs['"]/,`from '${platformUrl}'`)
+      .replace(/import qr from ['"]\.\.\/assets\/ad-cover-qr\.svg['"]/,"const qr='data:image/svg+xml,%3Csvg/%3E'")
+    writeFileSync(compiledPath,content,'utf8')
+    const [{mount},{VIDEO_PLATFORM_ORDER,videoPlatform},{AD_MODES},{module:componentModule}]=await Promise.all([
+      import('@vue/test-utils'),
+      import('../src/shared/video-platforms.mjs'),
+      import('../src/shared/ad-modes.mjs'),
+      import(`${pathToFileURL(compiledPath).href}?test=${Date.now()}`).then(module=>({module}))
+    ])
+    for(const kind of VIDEO_PLATFORM_ORDER){
+      globalThis.__VIDEO_AD_ROUTE_META__={site:kind,mode:'ad'}
+      globalThis.__VIDEO_AD_PAGE_CALLS__=[]
+      const wrapper=mount(componentModule.default,{attachTo:document.body,global:{stubs:{webview:true}}})
+      assert.deepEqual(globalThis.__VIDEO_AD_PAGE_CALLS__,[kind])
+      assert.equal(AD_MODES[kind].home,videoPlatform(kind).home)
+      assert.equal(AD_MODES[kind].transparentKey,videoPlatform(kind).opacityKey)
+      wrapper.unmount()
+    }
+  }finally{
+    delete globalThis.__VIDEO_AD_ROUTE_META__
+    delete globalThis.__VIDEO_AD_PAGE_CALLS__
+    window.close()
+    for(const path of [compiledPath,routerStubPath,pageStubPath])if(existsSync(path))rmSync(path)
+    for(const [name,descriptor]of Object.entries(previous))descriptor?Object.defineProperty(globalThis,name,descriptor):delete globalThis[name]
+  }
+})
+
+test('shared controller prepares, controls and cleans every video ad kind',async()=>{
+  const {createAdPageController}=await import('../src/renderer/src/features/ad-modes/controller.mjs')
+  const {VIDEO_PLATFORM_ORDER,videoPlatform}=await import('../src/shared/video-platforms.mjs')
+  for(const kind of VIDEO_PLATFORM_ORDER){
+    const scripts=[];let zoom
+    const view={setZoomFactor:async value=>{zoom=value},insertCSS:async()=> 'css',removeInsertedCSS:async()=>{},getURL:()=>videoPlatform(kind).home,canGoBack:()=>false,executeJavaScript:async code=>{scripts.push(code);return true}}
+    const page=createAdPageController({kind,getWebview:()=>view,api:{getSettings:async()=>({}),saveSettings:async()=>({})}})
+    await page.load();await page.setExpanded(true);await page.domReady()
+    assert.equal(zoom,.6,`${kind} expanded video zoom`)
+    assert.ok(scripts.some(code=>code.includes('querySelectorAll')),`${kind} prepared video controls`)
+    await page.action('play')
+    await page.action('next')
+    await page.dispose()
+    assert.ok(scripts.at(-1).includes('__moyuAdVideoFit'),`${kind} cleaned injected page state`)
+  }
 })

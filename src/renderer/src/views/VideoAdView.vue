@@ -15,14 +15,19 @@
       <div v-if="native.covered" class="boss-cover" data-cover="qr"><img :src="qr" alt="二维码遮挡"/><span>扫码了解更多</span></div>
     </main>
     <footer @click="details=true"><strong>精彩生活，随时发现</strong><span>立即体验 ›</span></footer>
-    <div v-if="details" class="details-overlay" @click.self="details=false"><section role="dialog" aria-modal="true"><h3>广告详情</h3><p>这是本地广告皮肤，不会跳转商业推广网站。</p><p>视频在当前小窗口内即可直接操作。</p><button data-action="close-details" @click="details=false">关闭</button></section></div>
+    <div v-if="details" class="details-overlay" @click.self="details=false"><section role="dialog" aria-modal="true"><h3>广告详情</h3><p>这是本地广告皮肤，不会跳转商业推广网站。</p><p>{{platform.label}}视频在当前小窗口内即可直接操作。</p><button data-action="close-details" @click="details=false">关闭</button></section></div>
   </div>
 </template>
 <script setup>
 import {ref} from 'vue'
+import {useRoute} from 'vue-router'
 import {useAdPage} from '../features/ad-modes/use-ad-page.mjs'
+import {videoPlatform} from '../../../shared/video-platforms.mjs'
 import qr from '../assets/ad-cover-qr.svg'
-const {api,wv,initialized,initialAddress,error,pending,state,native,perform,domReady,navigation,failed,update,action,toTransparent}=useAdPage('douyin')
+const route=useRoute()
+const kind=String(route.meta.site||'')
+const platform=videoPlatform(kind)
+const {api,wv,initialized,initialAddress,error,pending,state,native,perform,domReady,navigation,failed,update,action,toTransparent}=useAdPage(kind)
 const details=ref(false),brands=['搜狗输入法','今日优选','热门推荐'],captions=['打字更快，表达更精彩','发现好物，享受生活','精彩内容，不容错过']
 </script>
 <style scoped>

@@ -28,7 +28,7 @@ export function useAdPage(kind){
     if(!api){error.value='广告窗口接口不可用，请通过 Electron 启动';return}
     subscriptions.push(api.onState(receive),api.onError(message=>{error.value=message}))
     subscriptions.push(window.ipcRenderer.on('stop-or-continue',()=>kind==='weReadAd'?update({autoScroll:!state.autoScroll}):action('play')))
-    if(kind==='douyin')for(const [channel,name]of [['all-prev','prev'],['all-next','next'],['all-screen','fullscreen'],['all-like','like']])subscriptions.push(window.ipcRenderer.on(channel,()=>action(name)))
+    if(kind!=='weReadAd')for(const [channel,name]of [['all-prev','prev'],['all-next','next'],['all-screen','fullscreen'],['all-like','like']])subscriptions.push(window.ipcRenderer.on(channel,()=>action(name)))
     await perform(async()=>{await controller.load();initialAddress.value=state.address;receive(await api.getState());Object.assign(shortcuts,await window.ipcRenderer.invoke('get-shortcuts'))})
     if(!closed)initialized.value=true
   })
