@@ -76,12 +76,16 @@ test('unknown prototype and malformed keys are rejected safely', () => {
   }
 })
 
-test('context and profile APIs require primitive explicit identity strings', () => {
+test('context and profile APIs preserve defaults but reject explicit invalid identities', () => {
   const trap={toString(){throw new Error('must not coerce')}}
-  for(const args of [[],[undefined,'wechat'],['douyin',undefined],[null,'wechat'],['douyin',null],[new String('douyin'),'wechat'],['douyin',new String('wechat')],[trap,'wechat'],['douyin',trap]]){
+  assert.deepEqual(chatContext(),chatContext('douyin','wechat'))
+  assert.deepEqual(chatContext(undefined,undefined),chatContext('douyin','wechat'))
+  assert.equal(chatProfile(),chatProfile('wechat'))
+  assert.equal(chatProfile(undefined),chatProfile('wechat'))
+  for(const args of [[null,'wechat'],['douyin',null],[[], 'wechat'],['douyin',[]],[new String('douyin'),'wechat'],['douyin',new String('wechat')],[trap,'wechat'],['douyin',trap]]){
     assert.throws(()=>chatContext(...args),/视频平台|伪装界面/)
   }
-  for(const skin of [undefined,null,123,new String('wechat'),trap,'__proto__','constructor','prototype']){
+  for(const skin of [null,123,[],new String('wechat'),trap,'__proto__','constructor','prototype']){
     assert.throws(()=>chatProfile(skin),/聊天平台/)
   }
 })

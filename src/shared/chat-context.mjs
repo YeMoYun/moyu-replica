@@ -31,7 +31,7 @@ function skinKey(value) {
   return value
 }
 
-export function chatContext(platform, skin) {
+export function chatContext(platform = 'douyin', skin = 'wechat') {
   const site = videoPlatform(platform).key
   const type = skinKey(skin)
   const legacy = site === 'douyin'
