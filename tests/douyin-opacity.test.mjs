@@ -84,7 +84,7 @@ test('fit CSS is owned, idempotent and retains internal vertical scrolling',()=>
   const css=[...nodes.values()][0].textContent;assert.match(css,/overflow-x/);assert.doesNotMatch(css,/overflow\s*:\s*hidden|overflow-y\s*:\s*hidden/)
   nodes.set('unrelated',{id:'unrelated'});run('cleanupDouyinPage',doc);assert.deepEqual([...nodes.keys()],['unrelated'])
 })
-test('opacity route retains dedicated controls and home entry independently of the ad view',()=>{
+test('opacity route retains dedicated controls behind the shared home entry independently of the ad view',()=>{
   const router=fs.readFileSync(new URL('../src/renderer/src/router/index.js',import.meta.url),'utf8')
   assert.match(router,/path: '\/douyinOpacity'.*DouyinOpacityView.vue/)
   assert.match(router,/path: '\/douyin'.*VideoAdView.vue/)
@@ -95,5 +95,10 @@ test('opacity route retains dedicated controls and home entry independently of t
   assert.match(view,/data-setting="opacity"[^>]*@input=/)
   assert.match(view,/shortcutLabels/)
   const preload=fs.readFileSync(new URL('../src/preload/index.js',import.meta.url),'utf8');assert.match(preload,/'douyinOpacityControl'/)
-  const home=fs.readFileSync(new URL('../src/renderer/src/views/HomeView.vue',import.meta.url),'utf8');assert.match(home,/抖音透明化/)
+  assert.match(preload,/ipcRenderer\.invoke\('video-mode:open', platform, mode\)/)
+  const platforms=fs.readFileSync(new URL('../src/shared/video-platforms.mjs',import.meta.url),'utf8')
+  assert.match(platforms,/douyin:define\([^\n]*'douyinOpacity'\)/)
+  const home=fs.readFileSync(new URL('../src/renderer/src/views/HomeView.vue',import.meta.url),'utf8')
+  assert.match(home,/VIDEO_PLATFORM_ORDER/);assert.match(home,/videoModeControl\.open/)
+  assert.doesNotMatch(home,/抖音透明化/)
 })
