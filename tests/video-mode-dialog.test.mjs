@@ -165,6 +165,21 @@ test('backdrop click closes while dialog content click does not', async () => {
   wrapper.unmount()
 })
 
+test('the five real mode buttons emit their exact selection keys in approved order', async () => {
+  const { wrapper } = await mountDialog()
+  const expected = ['ad', 'opacity', 'wechat', 'dingtalk', 'feishu']
+  const buttons = wrapper.findAll('.mode-button')
+  assert.equal(buttons.length, expected.length)
+
+  for (const button of buttons) await button.trigger('click')
+
+  assert.deepEqual(
+    wrapper.emitted('select')?.map(([mode]) => mode),
+    expected
+  )
+  wrapper.unmount()
+})
+
 test('unmount restores focus to the opener', async () => {
   const { opener, wrapper } = await mountDialog()
   assert.notEqual(document.activeElement, opener)
