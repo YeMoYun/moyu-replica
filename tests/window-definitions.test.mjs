@@ -21,3 +21,11 @@ test('all managed route variants including ad readers have explicit sizes', () =
     assert.ok(SITE_ROUTES[key].width>0); assert.ok(SITE_ROUTES[key].height>0)
   }
 })
+test('all video advertisement windows use compact always-on-top bounds',()=>{
+  for(const key of ['douyin','bilibili','huya','douyu','kuaishou']){
+    assert.equal(SITE_ROUTES[key].width,286)
+    assert.equal(SITE_ROUTES[key].height,420)
+    assert.equal(SITE_ROUTES[key].alwaysOnTop,true)
+    assert.equal(SITE_ROUTES[key].rightBottom,true)
+  }
+})

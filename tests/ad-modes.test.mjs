@@ -126,3 +126,15 @@ test('failed ad preference save retains live state; restored expanded video appl
   await page.load();await page.setExpanded(true);await page.domReady();assert.equal(zoom,.6)
   api.saveSettings=async()=>{throw Error('磁盘写入失败')};await assert.rejects(page.update({skin:1}),/磁盘/);assert.equal(page.state.skin,0)
 })
+test('all five advertisement routes use the dedicated compact video view',()=>{
+  const router=readFileSync(new URL('../src/renderer/src/router/index.js',import.meta.url),'utf8')
+  const routeLines=router.split(/\r?\n/).filter(line=>line.includes("path: '/"))
+  const routeFor=path=>routeLines.find(line=>line.includes(`path: '/${path}'`))
+  for(const path of ['douyin','bilibili','huya','douyu','kuaishou']){
+    const route=routeFor(path)
+    assert.ok(route,`${path} advertisement route must exist`)
+    assert.match(route,/VideoAdView\.vue/)
+    assert.match(route,new RegExp(`meta: \\{ site: '${path}', mode: 'ad' \\}`))
+  }
+  assert.match(routeFor('douyuOpacity'),/SiteView\.vue/)
+})
