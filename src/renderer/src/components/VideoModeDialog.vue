@@ -4,7 +4,8 @@
     class="mode-scrim"
     tabindex="-1"
     @click.self="emit('close')"
-    @keydown.escape.stop.prevent="emit('close')"
+    @keydown.escape.stop.prevent="handleKeydown"
+    @keydown.tab="handleKeydown"
   >
     <section
       class="mode-dialog"
@@ -14,7 +15,14 @@
     >
       <header>
         <h2>选择{{ platform.label }}模式</h2>
-        <button type="button" aria-label="关闭模式选择" @click="emit('close')">×</button>
+        <button
+          ref="closeButton"
+          type="button"
+          aria-label="关闭模式选择"
+          @click="close"
+        >
+          ×
+        </button>
       </header>
       <div class="mode-grid">
         <button type="button" class="mode-button" @click="choose('ad')">广告模式</button>
@@ -41,28 +49,50 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 defineProps({
   platform: {
     type: Object,
-    required: true
+    required: true,
+    validator: (value) => typeof value?.label === 'string' && value.label.trim().length > 0
   }
 })
 
 const emit = defineEmits(['close', 'select'])
 const scrim = ref(null)
+const closeButton = ref(null)
 let previouslyFocused = null
 
 const choose = (mode) => emit('select', mode)
-const escape = (event) => {
-  if (event.key === 'Escape') emit('close')
+const close = () => emit('close')
+const focusableControls = () => Array.from(scrim.value?.querySelectorAll('button:not([disabled])') ?? [])
+const handleKeydown = (event) => {
+  if (event.key === 'Escape') {
+    event.stopPropagation()
+    event.preventDefault()
+    close()
+    return
+  }
+
+  if (event.key !== 'Tab') return
+  const controls = focusableControls()
+  const first = controls[0]
+  const last = controls.at(-1)
+  if (!first || !last) return
+
+  const focusIsOutside = !scrim.value?.contains(document.activeElement)
+  if (event.shiftKey && (document.activeElement === first || focusIsOutside)) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && (document.activeElement === last || focusIsOutside)) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 
 onMounted(async () => {
   previouslyFocused = document.activeElement
-  document.addEventListener('keydown', escape)
   await nextTick()
-  scrim.value?.focus()
+  closeButton.value?.focus()
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('keydown', escape)
   previouslyFocused?.focus?.()
 })
 </script>
@@ -75,13 +105,15 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   padding: 20px;
+  overflow-y: auto;
   background: #090a14b8;
   backdrop-filter: blur(5px);
 }
 
 .mode-dialog {
   width: min(526px, 100%);
-  overflow: hidden;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
   color: #fff;
   background: #2d2e45;
   border: 1px solid #555873;
@@ -139,5 +171,70 @@ header button {
   grid-column: 1 / -1;
   background: #424b67;
   border-color: #7588c8;
+}
+
+@media (max-width: 560px) {
+  .mode-scrim {
+    padding: 12px;
+  }
+
+  .mode-dialog {
+    max-height: calc(100dvh - 24px);
+    border-radius: 15px;
+  }
+
+  header {
+    height: 70px;
+    padding: 0 18px;
+  }
+
+  h2 {
+    font-size: 20px;
+  }
+
+  .mode-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 18px;
+  }
+
+  .mode-button {
+    height: 52px;
+    font-size: 16px;
+  }
+
+  .feishu {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-height: 520px) {
+  .mode-scrim {
+    padding: 8px;
+  }
+
+  .mode-dialog {
+    max-height: calc(100dvh - 16px);
+    border-radius: 13px;
+  }
+
+  header {
+    height: 58px;
+    padding: 0 16px;
+  }
+
+  h2 {
+    font-size: 19px;
+  }
+
+  .mode-grid {
+    gap: 8px;
+    padding: 14px;
+  }
+
+  .mode-button {
+    height: 44px;
+    font-size: 16px;
+  }
 }
 </style>

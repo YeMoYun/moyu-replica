@@ -33,8 +33,11 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.5",
+    "@vue/compiler-sfc": "3.5.42",
+    "@vue/test-utils": "^2.5.1",
     "electron": "^31.0.0",
     "electron-vite": "^2.3.0",
+    "happy-dom": "^20.14.5",
     "vite": "^5.3.1"
   }
 }
