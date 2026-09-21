@@ -12,9 +12,9 @@ const artifacts = path.join(__dirname, '../.artifacts/video-opacity-demo-2026091
 const snapshotPath = path.join(process.env.MOYU_VIDEO_OPACITY_DATA_DIR, 'smoke-bounds-snapshots.json')
 const snapshots = process.argv.includes('--restore-only') ? JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) : {}
 const profiles = [
-  { site: 'bilibili', name: 'B站', api: 'createBilibiliOpacity', zoom: .75, opacity: .33, topmost: true },
-  { site: 'huya', name: '虎牙', api: 'createHuyaOpacity', zoom: .4, opacity: .47, topmost: false },
-  { site: 'kuaishou', name: '快手', api: 'createKuaishou', zoom: 1, opacity: .61, topmost: true }
+  { site: 'bilibili', name: 'B站', zoom: .75, opacity: .33, topmost: true },
+  { site: 'huya', name: '虎牙', zoom: .4, opacity: .47, topmost: false },
+  { site: 'kuaishou', name: '快手', zoom: 1, opacity: .61, topmost: true }
 ]
 let passed = 0, fixtureRequests = 0
 const watchdog = setTimeout(() => { console.error('VIDEO_OPACITY smoke timeout'); app.exit(1) }, 120000)
@@ -40,6 +40,11 @@ async function screenshot(window, name) {
   fs.mkdirSync(artifacts, { recursive: true }); fs.writeFileSync(path.join(artifacts, name), (await window.webContents.capturePage()).toPNG())
 }
 async function closeDialog(window) { await evaluate(window, "document.querySelector('.dialog-close').click()") }
+async function openOpacityFromChooser(home, profile) {
+  await evaluate(home, `(()=>{const button=[...document.querySelectorAll('.video-grid button')].find(node=>node.textContent.trim()===${JSON.stringify(profile.name+'模式')});if(!button)throw Error('未找到${profile.name}模式入口');button.click()})()`)
+  await until(() => evaluate(home, `document.querySelector('[role=dialog]')?.getAttribute('aria-label')===${JSON.stringify('选择'+profile.name+'模式')}`), `${profile.site} mode chooser`)
+  await evaluate(home, `(()=>{const button=[...document.querySelectorAll('.mode-button')].find(node=>node.textContent.trim()==='透明度模式');if(!button)throw Error('未找到透明度模式');button.click()})()`)
+}
 function assertRestoredBounds(window, expected) {
   const actual = window.getBounds()
   // Restoring the same integer DIP bounds can differ by 1–2 pixels in native
@@ -61,15 +66,15 @@ app.whenReady().then(async () => {
   try {
     const home = await until(() => find('/home'), 'home')
     await until(() => evaluate(home, 'Boolean(window.homeElectronAPI&&window.windowControl)'), 'preload')
-    if (!process.argv.includes('--restore-only')) await check('home only offers four transparent platform entries', async () => {
+    if (!process.argv.includes('--restore-only')) await check('home exposes five platform entries through the shared mode chooser', async () => {
       const labels = await evaluate(home, "Array.from(document.querySelectorAll('.group'))[2].querySelector('.grid').textContent")
-      for (const label of ['抖音透明化', 'B站透明化', '虎牙透明化', '快手透明化']) assert.ok(labels.includes(label))
-      assert.doesNotMatch(labels, /抖音模式|B站模式|虎牙直播/)
+      for (const label of ['抖音模式', 'B站模式', '虎牙模式', '斗鱼模式', '快手模式']) assert.ok(labels.includes(label))
+      assert.doesNotMatch(labels, /抖音透明化|B站透明化|虎牙透明化|快手透明化/)
       await screenshot(home, 'home-transparent-entries.png')
     })
     for (const p of profiles) {
       const key = `${p.site}Opacity`, prefix = p.site
-      assert.equal(await evaluate(home, `window.homeElectronAPI.${p.api}()`), true)
+      await openOpacityFromChooser(home,p)
       let window = await until(() => find(`/${key}`), key), guest = await loadFixture(window, p.site)
       if (process.argv.includes('--restore-only')) {
         await check(`${prefix} process restart restores independent native state and bounds`, async () => {
@@ -196,7 +201,7 @@ app.whenReady().then(async () => {
         const old = window
         await click(window, 'close').catch(error => { if (!/destroy|closed/i.test(error.message)) throw error }); await until(() => old.isDestroyed(), 'closed')
         assert.deepEqual(await evaluate(home, `window.settingApi.getSetting('windowState.${key}.bounds')`), snapshots[p.site])
-        await evaluate(home, `window.homeElectronAPI.${p.api}()`); window = await until(() => find(`/${key}`), 'reopened'); guest = await loadFixture(window, p.site)
+        await openOpacityFromChooser(home,p); window = await until(() => find(`/${key}`), 'reopened'); guest = await loadFixture(window, p.site)
         assert.ok(Math.abs(window.getOpacity() - p.opacity) < .03); assert.equal(window.isAlwaysOnTop(), p.topmost)
         assertRestoredBounds(window, snapshots[p.site])
         assert.ok(Math.abs(guest.getZoomFactor() - p.zoom) < .01)

@@ -10,24 +10,39 @@ async function check(name,fn){await fn();passed++;console.log('PASS '+name)}
 const click=(w,a)=>evaluate(w,`document.querySelector('[data-action="${a}"]').click()`)
 const ready=w=>until(()=>evaluate(w,"document.querySelector('[data-ready]')?.dataset.ready==='true'"),'ad ready')
 const input=(w,setting,value,event='input')=>evaluate(w,`(()=>{const i=document.querySelector('[data-setting=${setting}]');i.value=${JSON.stringify(value)};i.dispatchEvent(new Event('${event}',{bubbles:true}))})()`)
-const watchdog=setTimeout(()=>{console.error('Advertisement smoke watchdog');app.exit(1)},60000)
+const watchdog=setTimeout(()=>{console.error('Advertisement smoke watchdog');app.exit(1)},180000)
 app.whenReady().then(async()=>{
   const reading=fs.readFileSync(path.join(__dirname,'../tests/fixtures/web/reader/weread.html'),'utf8')
   const video=fs.readFileSync(path.join(__dirname,'../tests/fixtures/web/ad-modes/video.html'),'utf8')
-  await session.defaultSession.protocol.handle('https',request=>new Response(new URL(request.url).hostname==='weread.qq.com'?reading:video,{headers:{'Content-Type':'text/html; charset=utf-8'}}))
+  const videoHosts=new Set(['www.douyin.com','www.bilibili.com','www.huya.com','www.douyu.com','www.kuaishou.com'])
+  await session.defaultSession.protocol.handle('https',request=>{
+    const host=new URL(request.url).hostname
+    if(host!=='weread.qq.com'&&!videoHosts.has(host))return new Response('Blocked by isolated advertisement smoke',{status:404})
+    return new Response(host==='weread.qq.com'?reading:video,{headers:{'Content-Type':'text/html; charset=utf-8'}})
+  })
   try{
     await until(()=>find('/home'),'home');const home=find('/home');await until(()=>evaluate(home,'Boolean(window.adModeControl)'),'bridge')
     const captures=path.join(__dirname,'../.artifacts/ad-modes-20260918');fs.mkdirSync(captures,{recursive:true})
-    for(const kind of ['douyin','weReadAd']){
+    const urls={
+      douyin:'https://www.douyin.com/video/123',
+      bilibili:'https://www.bilibili.com/video/BV1',
+      huya:'https://www.huya.com/123',
+      douyu:'https://www.douyu.com/456',
+      kuaishou:'https://www.kuaishou.com/short-video/789',
+      weReadAd:'https://weread.qq.com/web/reader/123'
+    }
+    const transparentRoutes={douyin:'/douyinOpacity',bilibili:'/bilibiliOpacity',huya:'/huyaOpacity',douyu:'/douyuOpacity',kuaishou:'/kuaishouOpacity',weReadAd:'/weRead'}
+    for(const kind of ['douyin','bilibili','huya','douyu','kuaishou','weReadAd']){
+      const isVideo=kind!=='weReadAd',url=urls[kind]
       await evaluate(home,`window.adModeControl.open('${kind}')`);await until(()=>find('/'+kind),kind)
       let w=find('/'+kind);await ready(w)
       let guest=webContents.fromId(await evaluate(w,'document.querySelector("webview").getWebContentsId()'))
       if(process.argv.includes('--restore-only')){
         await check(kind+' restores own preferences and address after process restart',async()=>{
           const cfg=await evaluate(w,'window.adModeControl.getSettings()')
-          assert.equal(guest.getURL(),kind==='douyin'?'https://www.douyin.com/video/123':'https://weread.qq.com/web/reader/123')
+          assert.equal(guest.getURL(),url)
           if(kind==='douyin')assert.equal(cfg.skin,1)
-          else{assert.equal(cfg.text,'学历提升测试');assert.equal(cfg.zoom,.85);assert.equal(cfg.speed,4);assert.equal(cfg.autoScroll,true);assert.equal(cfg.color,'#e2f3e8')}
+          if(kind==='weReadAd'){assert.equal(cfg.text,'学历提升测试');assert.equal(cfg.zoom,.85);assert.equal(cfg.speed,4);assert.equal(cfg.autoScroll,true);assert.equal(cfg.color,'#e2f3e8')}
         });w.close();continue
       }
       await check(kind+' dedicated compact controls have no old address/opacity toolbar',async()=>{
@@ -37,7 +52,6 @@ app.whenReady().then(async()=>{
         await assert.rejects(evaluate(home,'window.adModeControl.getState()'),/广告窗口/)
         await assert.rejects(evaluate(w,"window.adModeControl.saveSettings({address:'javascript:alert(1)'})"))
       })
-      const url=kind==='douyin'?'https://www.douyin.com/video/123':'https://weread.qq.com/web/reader/123'
       let navigations=0
       guest.on('did-start-navigation',(_e,address,_inPlace,isMainFrame)=>{if(isMainFrame&&address===url)navigations++})
       await evaluate(w,`document.querySelector('webview').loadURL(${JSON.stringify(url)})`);await ready(w)
@@ -46,37 +60,52 @@ app.whenReady().then(async()=>{
         assert.equal((await evaluate(w,'window.adModeControl.getSettings()')).address,url)
         assert.equal(BrowserWindow.getAllWindows().filter(x=>x.webContents.getURL().endsWith('#/'+kind)).length,1)
       })
-      if(kind==='douyin'){
-        await check('back control returns the video guest to its previous page',async()=>{
-          const nextUrl='https://www.douyin.com/video/456'
+      if(isVideo){
+        await check(kind+' back control returns to the previous guest page',async()=>{
+          const nextUrl=new URL('/moyu-next',url).href
           await evaluate(w,`document.querySelector('webview').loadURL(${JSON.stringify(nextUrl)})`);await ready(w)
           assert.equal(guest.getURL(),nextUrl)
-          await click(w,'back');await until(()=>guest.getURL()===url,'advertisement history back');await ready(w)
+          await click(w,'back');await until(()=>guest.getURL()===url,kind+' history back');await ready(w)
         })
-        await check('video fills guest viewport and stays clickable in the compact window',async()=>{
+        await check(kind+' compact guest remains directly clickable without falling back to Douyin',async()=>{
           assert.equal(await evaluate(w,'Boolean(document.querySelector(".click-mask"))'),false)
-          assert.equal(await guest.executeJavaScript('getComputedStyle(document.querySelector("header")).display'),'none')
+          assert.equal(guest.getURL(),url)
+          assert.equal(new URL(guest.getURL()).hostname,new URL(url).hostname)
           assert.ok(Math.abs(await guest.executeJavaScript('document.querySelector(".xgplayer").getBoundingClientRect().width-innerWidth'))<=1)
-          await guest.executeJavaScript(`const inactive=document.createElement('div');inactive.id='inactive-player';inactive.className='xgplayer';inactive.style.cssText='display:none;position:relative';document.body.appendChild(inactive)`)
-          assert.equal(await guest.executeJavaScript('getComputedStyle(document.getElementById("inactive-player")).position'),'relative','inactive player must not be forced over the active player')
         })
-        await check('ad content click opens local details and skin cycles without destroying video',async()=>{
-          await evaluate(w,"document.querySelector('.ad-copy').click()");await until(()=>evaluate(w,'Boolean(document.querySelector("[role=dialog]"))'),'details')
-          await click(w,'close-details');await click(w,'skin');await ready(w)
-          assert.equal((await evaluate(w,'window.adModeControl.getSettings()')).skin,1)
-          assert.equal(await evaluate(w,'document.querySelector("webview").getWebContentsId()'),guest.id)
+        if(kind==='huya')await check('huya live-room fullscreen fills only the guest and never enters native fullscreen',async()=>{
+          await guest.executeJavaScript("document.querySelector('.player-fullscreen-btn').click()")
+          await until(()=>guest.executeJavaScript("Boolean(document.querySelector('[data-moyu-huya-player=true]'))"),'huya guest fill')
+          const fit=await guest.executeJavaScript(`(()=>{const r=document.querySelector('#J_playerMain').getBoundingClientRect();return {width:r.width,height:r.height,innerWidth,innerHeight,native:document.fullscreenElement!==null}})()`)
+          assert.ok(Math.abs(fit.width-fit.innerWidth)<=1);assert.ok(Math.abs(fit.height-fit.innerHeight)<=1)
+          assert.equal(fit.native,false);assert.equal(w.isFullScreen(),false)
+          await guest.executeJavaScript("document.querySelector('.player-fullscreen-btn').click()")
+          await until(()=>guest.executeJavaScript("!document.querySelector('[data-moyu-huya-player=true]')"),'huya guest restore')
         })
-        await check('expanded video remains operable and global shortcuts reach actual guest controls',async()=>{
-          const smallBounds=w.getBounds()
-          await click(w,'expand');await until(()=>evaluate(w,'!document.querySelector(".click-mask")'),'unmasked');await ready(w)
-          assert.ok(w.getBounds().width>500);assert.ok(Math.abs(guest.getZoomFactor()-.6)<.01)
-          for(const [channel,data]of [['all-prev','prev'],['all-next','next'],['all-screen','fullscreen'],['all-like','liked']]){
-            w.webContents.send(channel);await until(()=>guest.executeJavaScript(`document.body.dataset.${data}==='yes'`),channel)
-          }
-          w.webContents.send('stop-or-continue');await until(()=>guest.executeJavaScript('document.querySelector("video").paused'),'paused')
-          w.webContents.send('stop-or-continue');await until(()=>guest.executeJavaScript('!document.querySelector("video").paused'),'playing')
-          await click(w,'expand');await until(()=>Math.abs(w.getBounds().width-smallBounds.width)<=4,'small bounds with native DPI rounding');await ready(w)
-        })
+        if(kind==='douyin'){
+          await check('douyin compact fit hides site chrome and leaves inactive players untouched',async()=>{
+            assert.equal(await guest.executeJavaScript('getComputedStyle(document.querySelector("header")).display'),'none')
+            await guest.executeJavaScript(`const inactive=document.createElement('div');inactive.id='inactive-player';inactive.className='xgplayer';inactive.style.cssText='display:none;position:relative';document.body.appendChild(inactive)`)
+            assert.equal(await guest.executeJavaScript('getComputedStyle(document.getElementById("inactive-player")).position'),'relative','inactive player must not be forced over the active player')
+          })
+          await check('douyin ad content and skin preserve the live guest',async()=>{
+            await evaluate(w,"document.querySelector('.ad-copy').click()");await until(()=>evaluate(w,'Boolean(document.querySelector("[role=dialog]"))'),'details')
+            await click(w,'close-details');await click(w,'skin');await ready(w)
+            assert.equal((await evaluate(w,'window.adModeControl.getSettings()')).skin,1)
+            assert.equal(await evaluate(w,'document.querySelector("webview").getWebContentsId()'),guest.id)
+          })
+          await check('douyin expanded window and global shortcuts reach the guest',async()=>{
+            const smallBounds=w.getBounds()
+            await click(w,'expand');await until(()=>evaluate(w,'!document.querySelector(".click-mask")'),'unmasked');await ready(w)
+            assert.ok(w.getBounds().width>500);assert.ok(Math.abs(guest.getZoomFactor()-.6)<.01)
+            for(const [channel,data]of [['all-prev','prev'],['all-next','next'],['all-screen','fullscreen'],['all-like','liked']]){
+              w.webContents.send(channel);await until(()=>guest.executeJavaScript(`document.body.dataset.${data}==='yes'`),channel)
+            }
+            w.webContents.send('stop-or-continue');await until(()=>guest.executeJavaScript('document.querySelector("video").paused'),'paused')
+            w.webContents.send('stop-or-continue');await until(()=>guest.executeJavaScript('!document.querySelector("video").paused'),'playing')
+            await click(w,'expand');await until(()=>Math.abs(w.getBounds().width-smallBounds.width)<=4,'small bounds with native DPI rounding');await ready(w)
+          })
+        }
       }else{
         await check('reading settings update real page zoom/speed/text/color/scrollbar with no transparency writes',async()=>{
           await click(w,'settings');await until(()=>evaluate(w,'Boolean(document.querySelector("[data-setting=zoom]"))'),'settings')
@@ -112,7 +141,7 @@ app.whenReady().then(async()=>{
       })
       await check(kind+' explicit switch transfers URL to unchanged transparent view and closes ad only after success',async()=>{
         if(kind==='weReadAd')await click(w,'settings')
-        await click(w,'transparent');const route=kind==='douyin'?'/douyinOpacity':'/weRead'
+        await click(w,'transparent');const route=transparentRoutes[kind]
         await until(()=>find(route),'transparent window');const target=find(route)
         await until(()=>evaluate(target,"document.querySelector('webview')?.getURL()=== "+JSON.stringify(url)),'transferred address')
         await until(()=>!find('/'+kind),'ad closed after switch');target.close()
