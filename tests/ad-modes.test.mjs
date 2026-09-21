@@ -326,3 +326,45 @@ test('controller executes real Bilibili controls and exposes Huya shortcut failu
     for(const [name,descriptor]of Object.entries(previous))descriptor?Object.defineProperty(globalThis,name,descriptor):delete globalThis[name]
   }
 })
+
+test('Huya advertisement fullscreen stays inside the guest and controller cleans both lifecycles',async()=>{
+  const {createAdPageController}=await import('../src/renderer/src/features/ad-modes/controller.mjs')
+  const fixture=readFileSync(new URL('./fixtures/web/video-opacity/huya-room.html',import.meta.url),'utf8')
+  const browser=new Window({url:'https://www.huya.com/123'})
+  browser.document.write(fixture);browser.document.close()
+  const {document}=browser,player=document.querySelector('#J_playerMain'),button=document.querySelector('.player-fullscreen-btn')
+  button.removeAttribute('onclick')
+  let nativeRequests=0
+  player.requestFullscreen=async()=>{nativeRequests++}
+  button.addEventListener('click',()=>player.requestFullscreen())
+  const context={document,window:browser,MutationObserver:browser.MutationObserver,getComputedStyle:browser.getComputedStyle.bind(browser),KeyboardEvent:browser.KeyboardEvent,setTimeout,clearTimeout}
+  const scripts=[]
+  const view={
+    setZoomFactor:async()=>{},insertCSS:async()=> 'css',removeInsertedCSS:async()=>{},getURL:()=>browser.location.href,
+    executeJavaScript:async code=>{scripts.push(code);return vm.runInNewContext(code,context)}
+  }
+  const api={getSettings:async()=>({}),saveSettings:async()=>({})}
+  const page=createAdPageController({kind:'huya',getWebview:()=>view,api})
+  try{
+    await page.load();await page.domReady()
+    assert.ok(browser.__moyuHuyaWindowFill,'dom-ready must install the Huya click interceptor')
+    button.click()
+    assert.equal(nativeRequests,0,'captured Huya fullscreen click must not request native fullscreen')
+    assert.equal(player.getAttribute('data-moyu-huya-player'),'true')
+    assert.match(document.getElementById('__moyu_huya_window_fill_style__').textContent,/100vw.*100vh/)
+    document.dispatchEvent(new browser.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))
+    assert.equal(player.hasAttribute('data-moyu-huya-player'),false)
+    await page.action('fullscreen')
+    assert.equal(nativeRequests,0,'controller fullscreen action must call the window-fill toggle directly')
+    assert.equal(player.getAttribute('data-moyu-huya-player'),'true')
+    const installed=browser.__moyuHuyaWindowFill
+    await page.setExpanded(true)
+    assert.equal(browser.__moyuHuyaWindowFill,installed,'repeated appearance must keep one idempotent interceptor')
+    await page.dispose()
+    assert.equal(browser.__moyuHuyaWindowFill,undefined)
+    assert.equal(player.hasAttribute('data-moyu-huya-player'),false)
+    assert.equal(document.getElementById('__moyu_huya_window_fill_style__'),null)
+    assert.equal(document.getElementById('__moyu-ad-video-fit'),null)
+    assert.ok(scripts.some(code=>code.includes('toggleHuyaWindowFill')))
+  }finally{browser.close()}
+})

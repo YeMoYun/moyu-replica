@@ -1,5 +1,6 @@
 import { normalizeAdSettings,normalizeAdPatch,validateAdUrl } from '../../../../shared/ad-modes.mjs'
 import { startAutoScroll,stopAutoScroll,showReaderControls,hideReaderControls } from '../weread/page-scripts.mjs'
+import { installHuyaWindowFill,toggleHuyaWindowFill,cleanupHuyaWindowFill } from '../video-opacity/huya-window-fill.mjs'
 import { videoAdControls } from './video-controls.mjs'
 import { prepareAdVideo,navigateAdVideo,toggleAdVideoFullscreen,toggleAdVideoPlayback,likeAdVideo,cleanupAdPage } from './page-scripts.mjs'
 
@@ -22,6 +23,7 @@ export function createAdPageController({kind,getWebview,api,state={...normalizeA
     if(cssKey){await c.view.removeInsertedCSS(cssKey);c.check();cssKey=null}
     if(state.scrollbarHidden){cssKey=await c.view.insertCSS('::-webkit-scrollbar{display:none!important}');c.check()}
     if(isVideo)await c.script(prepareAdVideo)
+    if(kind==='huya')await c.script(installHuyaWindowFill)
     await scroll(c)
   }
   const load=()=>enqueue(async()=>{Object.assign(state,normalizeAdSettings(kind,await api.getSettings()));return state})
@@ -41,13 +43,16 @@ export function createAdPageController({kind,getWebview,api,state={...normalizeA
         c.view.goBack()
         return true
       },
-      prev:()=>c.script(navigateAdVideo,controls,'prev'),next:()=>c.script(navigateAdVideo,controls,'next'),fullscreen:()=>c.script(toggleAdVideoFullscreen,controls),play:()=>c.script(toggleAdVideoPlayback,controls),like:()=>c.script(likeAdVideo,controls)
+      prev:()=>c.script(navigateAdVideo,controls,'prev'),next:()=>c.script(navigateAdVideo,controls,'next'),fullscreen:()=>kind==='huya'?c.script(toggleHuyaWindowFill):c.script(toggleAdVideoFullscreen,controls),play:()=>c.script(toggleAdVideoPlayback,controls),like:()=>c.script(likeAdVideo,controls)
     }[name]
     if(!isVideo||!fn)throw Error('不支持的广告操作');return fn()
   })
   async function dispose(){
     const view=getWebview(),ready=state.ready;disposed=true;generation++;state.ready=false
-    if(ready&&view)try{await view.executeJavaScript(`(${(isVideo?cleanupAdPage:stopAutoScroll).toString()})()`)}catch{}
+    if(ready&&view){
+      if(kind==='huya')try{await view.executeJavaScript(`(${cleanupHuyaWindowFill.toString()})()`)}catch{}
+      try{await view.executeJavaScript(`(${(isVideo?cleanupAdPage:stopAutoScroll).toString()})()`)}catch{}
+    }
   }
   return {state,load,domReady,navigationStarted,update,setCovered,setExpanded,action,dispose}
 }
