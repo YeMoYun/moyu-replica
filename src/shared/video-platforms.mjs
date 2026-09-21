@@ -19,8 +19,8 @@ export const VIDEO_PLATFORMS = Object.freeze({
 })
 
 export function videoPlatform(key) {
+  if(!Object.hasOwn(VIDEO_PLATFORMS,key))throw new Error('不支持的视频平台')
   const definition=VIDEO_PLATFORMS[key]
-  if(!definition)throw new Error('不支持的视频平台')
   return definition
 }
 
