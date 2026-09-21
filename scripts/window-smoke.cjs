@@ -36,7 +36,14 @@ app.whenReady().then(async () => {
       clearTimeout(watchdog);globalShortcut.unregisterAll();app.exit(0);return
     }
     await check('home exposes seven video entries and five-mode chooser', async () => {
-      assert.equal(await evaluate(home, 'document.querySelectorAll(".video-grid button").length'), 7)
+      await until(
+        async () => (await evaluate(home, 'document.querySelectorAll(".video-grid button").length')) === 7,
+        'seven video entries'
+      )
+      assert.deepEqual(
+        await evaluate(home, '[...document.querySelectorAll(".video-grid button")].map(x=>x.textContent.trim())'),
+        ['抖音模式', 'B站模式', '虎牙模式', '斗鱼模式', '快手模式', '自定义网站模式', '本地视频播放']
+      )
       await evaluate(home, '[...document.querySelectorAll(".video-grid button")].find(x=>x.textContent.includes("抖音")).click()')
       await until(() => evaluate(home, 'Boolean(document.querySelector("[role=dialog]"))'), 'video mode dialog')
       assert.deepEqual(
@@ -44,6 +51,11 @@ app.whenReady().then(async () => {
         ['广告模式', '透明度模式', '微信模式', '钉钉模式', '飞书模式']
       )
       await evaluate(home, 'document.querySelector("[aria-label=关闭模式选择]").click()')
+      await until(
+        async () => !(await evaluate(home, 'Boolean(document.querySelector("[role=dialog]"))')),
+        'video mode dialog closed'
+      )
+      assert.equal(await evaluate(home, 'Boolean(document.querySelector("[role=dialog]"))'), false)
     })
     await check('preload exposes sender-targeted window control', async () => assert.equal(await evaluate(home,'typeof window.windowControl.getState'), 'function'))
     await evaluate(home, 'window.homeElectronAPI.createWeb()')
