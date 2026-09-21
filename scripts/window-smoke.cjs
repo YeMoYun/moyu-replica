@@ -35,6 +35,16 @@ app.whenReady().then(async () => {
       console.log('SMOKE_RESTART_RESULT {"passed":2,"failed":0}')
       clearTimeout(watchdog);globalShortcut.unregisterAll();app.exit(0);return
     }
+    await check('home exposes seven video entries and five-mode chooser', async () => {
+      assert.equal(await evaluate(home, 'document.querySelectorAll(".video-grid button").length'), 7)
+      await evaluate(home, '[...document.querySelectorAll(".video-grid button")].find(x=>x.textContent.includes("抖音")).click()')
+      await until(() => evaluate(home, 'Boolean(document.querySelector("[role=dialog]"))'), 'video mode dialog')
+      assert.deepEqual(
+        await evaluate(home, '[...document.querySelectorAll(".mode-button")].map(x=>x.textContent.trim())'),
+        ['广告模式', '透明度模式', '微信模式', '钉钉模式', '飞书模式']
+      )
+      await evaluate(home, 'document.querySelector("[aria-label=关闭模式选择]").click()')
+    })
     await check('preload exposes sender-targeted window control', async () => assert.equal(await evaluate(home,'typeof window.windowControl.getState'), 'function'))
     await evaluate(home, 'window.homeElectronAPI.createWeb()')
     let web = await until(() => find('/web'), 'web')
