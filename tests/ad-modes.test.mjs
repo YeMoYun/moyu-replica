@@ -12,7 +12,32 @@ test('ad settings defaults and clamping never inherit transparency settings', as
   const settings=normalizeAdSettings('weReadAd',{zoom:9,speed:-1,autoScroll:'false',color:'bad',text:'新的广告'})
   assert.equal(settings.zoom,1);assert.equal(settings.speed,1);assert.equal(settings.autoScroll,false)
   assert.equal(settings.color,'#fff4d1');assert.equal(settings.text,'新的广告')
-  assert.throws(()=>normalizeAdSettings('huya',{}),/不支持/)
+})
+test('all approved video ads have compact defaults and existing transparency targets', async () => {
+  const {AD_MODES,normalizeAdSettings}=await shared()
+  const {VIDEO_PLATFORM_ORDER,videoPlatform}=await import('../src/shared/video-platforms.mjs')
+  for(const key of VIDEO_PLATFORM_ORDER){
+    assert.equal(AD_MODES[key].home,videoPlatform(key).home)
+    assert.equal(AD_MODES[key].transparentKey,videoPlatform(key).opacityKey)
+    assert.equal(normalizeAdSettings(key,{}).zoom,.2)
+  }
+  assert.equal(normalizeAdSettings('weReadAd',{}).zoom,.7)
+})
+test('video ad URLs accept own official hosts and reject cross-site hosts',async()=>{
+  const {validateAdUrl}=await shared()
+  const cases={douyin:'https://www.douyin.com/video/1',bilibili:'https://www.bilibili.com/video/BV1',huya:'https://www.huya.com/123',douyu:'https://www.douyu.com/456',kuaishou:'https://www.kuaishou.com/short-video/789'}
+  for(const [kind,url] of Object.entries(cases)){
+    assert.equal(validateAdUrl(kind,url),url)
+    assert.throws(()=>validateAdUrl(kind,'https://example.com/video/1'))
+    assert.throws(()=>validateAdUrl(kind,url.replace('https://','https://user:pass@')))
+  }
+})
+test('ad registry rejects prototype keys, deceptive subdomains and non-http protocols',async()=>{
+  const {normalizeAdSettings,validateAdUrl}=await shared()
+  for(const key of ['__proto__','constructor','toString'])assert.throws(()=>normalizeAdSettings(key,{}),/不支持/)
+  for(const url of ['https://douyin.com.evil.test/video/1','https://bilibili.com.evil.test/video/BV1','javascript:alert(1)','file:///C:/Windows/win.ini']){
+    assert.throws(()=>validateAdUrl(url.includes('bilibili')?'bilibili':'douyin',url))
+  }
 })
 test('ad URLs accept only their own HTTPS sites and reject credentials and executable schemes', async () => {
   const { validateAdUrl }=await shared()
