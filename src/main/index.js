@@ -24,6 +24,7 @@ import { createAdWindowController } from './ad-window-controls.mjs'
 import { createChatWindowController } from './chat-window-controls.mjs'
 import { createChatService } from './chat-service.mjs'
 import { createVideoModeLauncher } from './video-mode-launcher.mjs'
+import { createVideoModeIpcHandlers } from './video-mode-ipc.mjs'
 import { validateChatGuestAttachment } from './chat-guest-policy.mjs'
 import { validateChatUrl } from '../shared/chat-state.mjs'
 import { AD_MODES, normalizeAdSettings, normalizeAdPatch, validateAdUrl } from '../shared/ad-modes.mjs'
@@ -422,16 +423,9 @@ function registerStyleControls(prefix, key) {
 }
 
 function registerIpc() {
-  handle('video-mode:open', (event, platform, mode) => {
-    if (keyFromSender(event)!=='main') throw new Error('仅主窗口可打开视频模式')
-    videoModeLauncher.open(platform, mode)
-    return true
-  })
-  handle('video-mode:open-recent-chat', (event, skin) => {
-    if (keyFromSender(event)!=='main') throw new Error('仅主窗口可打开伪装模式')
-    videoModeLauncher.openRecentChat(skin)
-    return true
-  })
+  const videoModeIpc = createVideoModeIpcHandlers({ keyFromSender, launcher: videoModeLauncher })
+  handle('video-mode:open', videoModeIpc.open)
+  handle('video-mode:open-recent-chat', videoModeIpc.openRecentChat)
   const requireWechat = event => { if (keyFromSender(event) !== 'wechat') throw Error('仅微信窗口可操作聊天配置') }
   const requireWechatLegacy = event => { if (!['wechat','wechatConfig'].includes(keyFromSender(event))) throw Error('仅微信窗口可操作旧聊天配置') }
   handle('chat-mode:get', event => { requireWechat(event); return chatService.get() })
