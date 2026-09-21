@@ -25,7 +25,7 @@ import { createChatWindowController } from './chat-window-controls.mjs'
 import { createChatService } from './chat-service.mjs'
 import { createRegisteredAdOpener, createVideoModeLauncher } from './video-mode-launcher.mjs'
 import { createVideoModeIpcHandlers } from './video-mode-ipc.mjs'
-import { transferToTransparentGuest } from './ad-transparent-transfer.mjs'
+import { createScopedAdCloser, transferToTransparentGuest } from './ad-transparent-transfer.mjs'
 import { validateChatGuestAttachment } from './chat-guest-policy.mjs'
 import { validateChatUrl } from '../shared/chat-state.mjs'
 import { AD_MODES, normalizeAdSettings, normalizeAdPatch, validateAdUrl } from '../shared/ad-modes.mjs'
@@ -493,16 +493,20 @@ function registerIpc() {
   handle('ad-mode:expand', event => adWindowControls.expand(adKind(event)))
   handle('ad-mode:close', event => adWindowControls.close(adKind(event)))
   handle('ad-mode:open-transparent', async(event,url) => {
-    const key=adKind(event),address=validateAdUrl(key,url),targetKey=AD_MODES[key].transparentKey
+    const key=adKind(event),sourceWindow=BrowserWindow.fromWebContents(event.sender)
+    if(!sourceWindow||windows.get(key)!==sourceWindow)throw new Error('源广告窗口已关闭')
+    const closeAd=createScopedAdCloser({
+      source:sourceWindow,
+      getCurrent:()=>windows.get(key),
+      close:()=>adWindowControls.close(key)
+    })
+    const address=validateAdUrl(key,url),targetKey=AD_MODES[key].transparentKey
     const target=openSite(targetKey)
     // Only navigate through the existing renderer; never write transparent preferences here.
     return transferToTransparentGuest({
       target,
       address,
-      closeAd: () => {
-        if(windows.get(key)&&!windows.get(key).isDestroyed()) return adWindowControls.close(key)
-        return true
-      }
+      closeAd
     })
   })
   handle('window-control:get-state', (event) => windowControls.state(keyFromSender(event)))
