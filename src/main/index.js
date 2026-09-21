@@ -23,7 +23,7 @@ import { createWindowController } from './window-controls.mjs'
 import { createAdWindowController } from './ad-window-controls.mjs'
 import { createChatWindowController } from './chat-window-controls.mjs'
 import { createChatService } from './chat-service.mjs'
-import { createVideoModeLauncher } from './video-mode-launcher.mjs'
+import { createRegisteredAdOpener, createVideoModeLauncher } from './video-mode-launcher.mjs'
 import { createVideoModeIpcHandlers } from './video-mode-ipc.mjs'
 import { validateChatGuestAttachment } from './chat-guest-policy.mjs'
 import { validateChatUrl } from '../shared/chat-state.mjs'
@@ -880,11 +880,9 @@ app.whenReady().then(() => {
     const win=windows.get('feishu')
     if(win&&!win.isDestroyed()&&!win.webContents.isDestroyed())win.webContents.send('feishu-mode:updated',state)
   }})
+  const openRegisteredAd=createRegisteredAdOpener({registry:AD_MODES,openSite})
   videoModeLauncher=createVideoModeLauncher({
-    openAd:key=>{
-      if(!Object.hasOwn(AD_MODES,key))throw new Error('不支持的广告模式')
-      return openSite(key)
-    },
+    openAd:openRegisteredAd,
     openOpacity:key=>openSite(key),
     openChat:(platform,skin)=>{
       if(platform!=='douyin')throw new Error('该平台伪装模式尚未接入')

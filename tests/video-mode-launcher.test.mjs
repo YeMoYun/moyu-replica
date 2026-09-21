@@ -1,8 +1,20 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { createVideoModeLauncher } from '../src/main/video-mode-launcher.mjs'
+import * as launcherModule from '../src/main/video-mode-launcher.mjs'
+import { AD_MODES } from '../src/shared/ad-modes.mjs'
 import { VIDEO_PLATFORM_ORDER } from '../src/shared/video-platforms.mjs'
+
+const { createVideoModeLauncher } = launcherModule
+
+function createTestAdOpener(openSite) {
+  assert.equal(
+    typeof launcherModule.createRegisteredAdOpener,
+    'function',
+    'registered advertisement opener must be exported'
+  )
+  return launcherModule.createRegisteredAdOpener({ registry: AD_MODES, openSite })
+}
 
 test('launcher dispatches every registered video platform to its advertisement key', () => {
   const opened = []
@@ -19,12 +31,48 @@ test('launcher dispatches every registered video platform to its advertisement k
   assert.deepEqual(opened, VIDEO_PLATFORM_ORDER)
 })
 
-test('main launcher accepts every registered advertisement key', () => {
+test('registered advertisement opener delegates every video platform and returns its result', () => {
+  const calls = []
+  const openAd = createTestAdOpener((key) => {
+    calls.push(key)
+    return { opened: key }
+  })
+
+  for (const key of VIDEO_PLATFORM_ORDER) assert.deepEqual(openAd(key), { opened: key })
+  assert.deepEqual(calls, VIDEO_PLATFORM_ORDER)
+})
+
+test('registered advertisement opener rejects inherited and unknown keys', () => {
+  const calls = []
+  const openAd = createTestAdOpener((key) => calls.push(key))
+
+  for (const key of ['unknown', '__proto__', 'constructor']) {
+    assert.throws(() => openAd(key), /不支持的广告模式/)
+  }
+  assert.deepEqual(calls, [])
+})
+
+test('registered advertisement opener preserves downstream throws and rejections', async () => {
+  const thrown = new Error('同步打开失败')
+  const rejected = new Error('异步打开失败')
+
+  assert.throws(
+    () => createTestAdOpener(() => { throw thrown })('douyin'),
+    error => error === thrown
+  )
+  await assert.rejects(
+    createTestAdOpener(() => Promise.reject(rejected))('bilibili'),
+    error => error === rejected
+  )
+})
+
+test('main launcher uses the registered advertisement opener', () => {
   const source = readFileSync(new URL('../src/main/index.js', import.meta.url), 'utf8')
 
   assert.doesNotMatch(source, /广告模式尚未接入/)
-  assert.match(source, /Object\.hasOwn\(AD_MODES,key\)/)
-  assert.match(source, /return openSite\(key\)/)
+  assert.match(source, /createRegisteredAdOpener/)
+  assert.match(source, /registry:\s*AD_MODES/)
+  assert.match(source, /openSite/)
 })
 
 test('launcher delegates resolved targets and records successful chat platform only', () => {

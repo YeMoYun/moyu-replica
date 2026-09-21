@@ -1,5 +1,12 @@
 import { resolveVideoMode } from '../shared/video-platforms.mjs'
 
+export function createRegisteredAdOpener({ registry, openSite }) {
+  return key => {
+    if (!Object.hasOwn(registry, key)) throw new Error('不支持的广告模式')
+    return openSite(key)
+  }
+}
+
 export function createVideoModeLauncher({ openAd, openOpacity, openChat, readRecent, writeRecent }) {
   function isThenable(value) {
     return (
