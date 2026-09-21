@@ -51,39 +51,59 @@ test('failed or timed-out transparent navigation preserves the ad window',async(
   assert.equal(closed,0)
 })
 
-test('readiness execution has a wall-clock timeout and never closes the ad',async()=>{
-  let closed=0
+test('one total deadline bounds a hanging readiness call without starting another attempt',async()=>{
+  let closed=0,calls=0
   const never=new Promise(()=>{})
-  const target={isDestroyed:()=>false,webContents:{isDestroyed:()=>false,executeJavaScript:()=>never}}
+  const target={isDestroyed:()=>false,webContents:{isDestroyed:()=>false,executeJavaScript:()=>{calls++;return never}}}
+  const started=Date.now()
   const transferPromise=transfer.transferToTransparentGuest({
-    target,address:'https://www.douyu.com/456',closeAd:()=>closed++,attempts:1,timeoutMs:5
+    target,address:'https://www.douyu.com/456',closeAd:()=>closed++,attempts:50,timeoutMs:20
   })
   await Promise.race([
     assert.rejects(transferPromise,/超时|尚未准备好/),
-    new Promise((_,reject)=>setTimeout(()=>reject(new Error('readiness did not honor timeoutMs')),100))
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('readiness exceeded the total deadline')),100))
   ])
+  assert.ok(Date.now()-started<80)
+  assert.equal(calls,1)
   assert.equal(closed,0)
 })
 
-test('navigation execution has a wall-clock timeout and handles a late rejection',async()=>{
-  let closed=0,rejectNavigation
+test('one total deadline bounds hanging navigation and handles its late rejection',async()=>{
+  let closed=0,rejectNavigation,calls=0
+  const readiness=new Promise(resolve=>setTimeout(()=>resolve(true),35))
   const lateNavigation=new Promise((_,reject)=>{rejectNavigation=reject})
   const target={
     isDestroyed:()=>false,
     webContents:{
       isDestroyed:()=>false,
-      executeJavaScript:code=>code.includes('isTransparentGuestReady')?true:lateNavigation
+      executeJavaScript:code=>{calls++;return code.includes('isTransparentGuestReady')?readiness:lateNavigation}
     }
   }
   const transferPromise=transfer.transferToTransparentGuest({
-    target,address:'https://www.douyu.com/456',closeAd:()=>closed++,attempts:1,timeoutMs:5
+    target,address:'https://www.douyu.com/456',closeAd:()=>closed++,attempts:50,timeoutMs:60
   })
   await Promise.race([
     assert.rejects(transferPromise,/导航超时|超时/),
-    new Promise((_,reject)=>setTimeout(()=>reject(new Error('navigation did not honor timeoutMs')),100))
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('navigation exceeded the total deadline')),85))
   ])
   rejectNavigation(new Error('late navigation rejection'))
   await new Promise(resolve=>setImmediate(resolve))
+  assert.equal(calls,2)
+  assert.equal(closed,0)
+})
+
+test('readiness execution errors propagate unchanged and are never retried',async()=>{
+  const failure=new Error('Render frame was disposed before WebFrameMain could be accessed')
+  let calls=0,closed=0
+  const target={
+    isDestroyed:()=>false,
+    webContents:{isDestroyed:()=>false,executeJavaScript:()=>{calls++;return Promise.reject(failure)}}
+  }
+  await assert.rejects(
+    transfer.transferToTransparentGuest({target,address:'https://www.douyu.com/456',closeAd:()=>closed++,attempts:50,timeoutMs:100}),
+    error=>error===failure
+  )
+  assert.equal(calls,1)
   assert.equal(closed,0)
 })
 

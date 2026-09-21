@@ -66,6 +66,20 @@ app.whenReady().then(async () => {
   try {
     const home = await until(() => find('/home'), 'home')
     await until(() => evaluate(home, 'Boolean(window.homeElectronAPI&&window.windowControl)'), 'preload')
+    if (!process.argv.includes('--restore-only')) await check('legacy direct opacity entries remain callable', async () => {
+      const entries = [
+        ['createBilibiliOpacity', '/bilibiliOpacity'],
+        ['createHuyaOpacity', '/huyaOpacity'],
+        ['createKuaishou', '/kuaishouOpacity']
+      ]
+      for (const [method, route] of entries) {
+        assert.equal(await evaluate(home, `typeof window.homeElectronAPI.${method}`), 'function')
+        assert.equal(await evaluate(home, `window.homeElectronAPI.${method}()`), true)
+        const legacyWindow = await until(() => find(route), `${method} legacy window`)
+        legacyWindow.close()
+        await until(() => legacyWindow.isDestroyed(), `${method} legacy close`)
+      }
+    })
     if (!process.argv.includes('--restore-only')) await check('home exposes five platform entries through the shared mode chooser', async () => {
       const labels = await evaluate(home, "Array.from(document.querySelectorAll('.group'))[2].querySelector('.grid').textContent")
       for (const label of ['抖音模式', 'B站模式', '虎牙模式', '斗鱼模式', '快手模式']) assert.ok(labels.includes(label))

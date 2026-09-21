@@ -78,36 +78,41 @@ export async function transferToTransparentGuest({
   interval = 100,
   timeoutMs = 3000
 }) {
-  let readinessError = null
+  const totalTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 3000
+  const deadline = Date.now() + totalTimeoutMs
+  const withinDeadline = (operation, message) => {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) throw new Error(message)
+    return withWallClockTimeout(operation, remaining, message)
+  }
+
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (target.isDestroyed() || target.webContents.isDestroyed()) {
       throw new Error('目标透明窗口已关闭')
     }
 
-    let ready = false
-    try {
-      ready = await withWallClockTimeout(
-        () => target.webContents.executeJavaScript(transparentGuestReadyScript()),
-        timeoutMs,
-        '透明窗口状态检查超时，请重试'
-      )
-    } catch (error) {
-      if (/超时/.test(error?.message || '')) readinessError = error
-    }
+    const ready = await withinDeadline(
+      () => target.webContents.executeJavaScript(transparentGuestReadyScript()),
+      '透明窗口状态检查超时，请重试'
+    )
 
     if (ready) {
-      await withWallClockTimeout(
+      await withinDeadline(
         () => target.webContents.executeJavaScript(transparentGuestLoadScript(address)),
-        timeoutMs,
         '透明窗口导航超时，请重试'
       )
       await closeAd()
       return true
     }
 
-    if (attempt + 1 < attempts) await pause(interval)
+    if (attempt + 1 < attempts) {
+      const remaining = deadline - Date.now()
+      await withinDeadline(
+        () => pause(Math.min(interval, Math.max(0, remaining))),
+        '透明窗口尚未准备好，等待超时'
+      )
+    }
   }
 
-  if (readinessError) throw readinessError
   throw new Error('透明窗口尚未准备好，请重试')
 }

@@ -4,7 +4,7 @@ if(!process.env.MOYU_AD_DATA_DIR)throw Error('Isolated data required')
 app.setPath('userData',process.env.MOYU_AD_DATA_DIR);app.disableHardwareAcceleration()
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms)),evaluate=(w,c)=>w.webContents.executeJavaScript(c,true)
 const find=route=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().endsWith('#'+route))
-let passed=0
+let passed=0,blockedHttpRequests=0
 async function until(fn,label){for(let i=0;i<120;i++){if(await fn())return;await pause(100)}throw Error('Timeout: '+label)}
 async function check(name,fn){await fn();passed++;console.log('PASS '+name)}
 const click=(w,a)=>evaluate(w,`document.querySelector('[data-action="${a}"]').click()`)
@@ -20,6 +20,9 @@ app.whenReady().then(async()=>{
     if(host!=='weread.qq.com'&&!videoHosts.has(host))return new Response('Blocked by isolated advertisement smoke',{status:404})
     return new Response(host==='weread.qq.com'?reading:video,{headers:{'Content-Type':'text/html; charset=utf-8'}})
   })
+  session.defaultSession.webRequest.onBeforeRequest({urls:['http://*/*']},(_details,callback)=>{
+    blockedHttpRequests++;callback({cancel:true})
+  })
   try{
     await until(()=>find('/home'),'home');const home=find('/home');await until(()=>evaluate(home,'Boolean(window.adModeControl)'),'bridge')
     const captures=path.join(__dirname,'../.artifacts/ad-modes-20260918');fs.mkdirSync(captures,{recursive:true})
@@ -30,6 +33,12 @@ app.whenReady().then(async()=>{
       douyu:'https://www.douyu.com/456',
       kuaishou:'https://www.kuaishou.com/short-video/789',
       weReadAd:'https://weread.qq.com/web/reader/123'
+    }
+    const videoPreferences={
+      bilibili:{skin:2,zoom:.31},
+      huya:{skin:1,zoom:.42},
+      douyu:{skin:2,zoom:.53},
+      kuaishou:{skin:1,zoom:.64}
     }
     const transparentRoutes={douyin:'/douyinOpacity',bilibili:'/bilibiliOpacity',huya:'/huyaOpacity',douyu:'/douyuOpacity',kuaishou:'/kuaishouOpacity',weReadAd:'/weRead'}
     for(const kind of ['douyin','bilibili','huya','douyu','kuaishou','weReadAd']){
@@ -42,6 +51,10 @@ app.whenReady().then(async()=>{
           const cfg=await evaluate(w,'window.adModeControl.getSettings()')
           assert.equal(guest.getURL(),url)
           if(kind==='douyin')assert.equal(cfg.skin,1)
+          if(videoPreferences[kind]){
+            assert.equal(cfg.skin,videoPreferences[kind].skin)
+            assert.equal(cfg.zoom,videoPreferences[kind].zoom)
+          }
           if(kind==='weReadAd'){assert.equal(cfg.text,'学历提升测试');assert.equal(cfg.zoom,.85);assert.equal(cfg.speed,4);assert.equal(cfg.autoScroll,true);assert.equal(cfg.color,'#e2f3e8')}
         });w.close();continue
       }
@@ -59,6 +72,13 @@ app.whenReady().then(async()=>{
         await pause(100);assert.equal(navigations,1,'one explicit navigation must not reload through saved address binding')
         assert.equal((await evaluate(w,'window.adModeControl.getSettings()')).address,url)
         assert.equal(BrowserWindow.getAllWindows().filter(x=>x.webContents.getURL().endsWith('#/'+kind)).length,1)
+      })
+      if(videoPreferences[kind])await check(kind+' persists its own visible advertisement preferences',async()=>{
+        const expected=videoPreferences[kind]
+        for(let skin=0;skin<expected.skin;skin++){await click(w,'skin');await ready(w)}
+        const cfg=await evaluate(w,`window.adModeControl.saveSettings({zoom:${expected.zoom}})`);await ready(w)
+        assert.equal(cfg.skin,expected.skin);assert.equal(cfg.zoom,expected.zoom)
+        assert.equal(await evaluate(w,`document.querySelector('.video-ad').classList.contains('skin-${expected.skin}')`),true)
       })
       if(isVideo){
         await check(kind+' back control returns to the previous guest page',async()=>{
@@ -143,7 +163,7 @@ app.whenReady().then(async()=>{
         if(kind==='weReadAd')await click(w,'settings')
         await click(w,'transparent');const route=transparentRoutes[kind]
         await until(()=>find(route),'transparent window');const target=find(route)
-        await until(()=>evaluate(target,"document.querySelector('webview')?.getURL()=== "+JSON.stringify(url)),'transferred address')
+        await until(()=>evaluate(target,"document.querySelector('webview')?.getURL()=== "+JSON.stringify(url)).catch(()=>false),'transferred address')
         await until(()=>!find('/'+kind),'ad closed after switch');target.close()
       })
     }
@@ -155,7 +175,8 @@ app.whenReady().then(async()=>{
       await evaluate(home,"window.ipcRenderer.invoke('boss-key')");await until(()=>transparent.getOpacity()>0,'transparent restored');await ready(ad);assert.equal(await evaluate(ad,'Boolean(document.querySelector("[data-cover]"))'),false)
       ad.close();transparent.close()
     })
-    console.log('AD_RESULT '+JSON.stringify({passed,failed:0,onlineSiteVerified:false}));clearTimeout(watchdog);globalShortcut.unregisterAll();app.exit(0)
+    assert.equal(blockedHttpRequests,0,'advertisement smoke must not attempt plain HTTP networking')
+    console.log('AD_RESULT '+JSON.stringify({passed,failed:0,blockedHttpRequests,remoteRequestsBlocked:true,onlineSiteVerified:false}));clearTimeout(watchdog);globalShortcut.unregisterAll();app.exit(0)
   }catch(error){console.error(error);const wins=BrowserWindow.getAllWindows().filter(w=>!w.isDestroyed());for(const w of wins)console.error('WINDOW',w.webContents.getURL(),await evaluate(w,'document.body.innerText').catch(()=>''));clearTimeout(watchdog);app.exit(1)}
 })
 require('../out/main/index.js')
