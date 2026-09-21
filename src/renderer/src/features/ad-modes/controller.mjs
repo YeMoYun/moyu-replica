@@ -1,10 +1,11 @@
 import { normalizeAdSettings,normalizeAdPatch,validateAdUrl } from '../../../../shared/ad-modes.mjs'
 import { startAutoScroll,stopAutoScroll,showReaderControls,hideReaderControls } from '../weread/page-scripts.mjs'
-import { navigateDouyinVideo,toggleDouyinFullscreen,toggleDouyinPlayback } from '../douyin/page-scripts.mjs'
-import { prepareAdVideo,likeAdVideo,cleanupAdPage } from './page-scripts.mjs'
+import { videoAdControls } from './video-controls.mjs'
+import { prepareAdVideo,navigateAdVideo,toggleAdVideoFullscreen,toggleAdVideoPlayback,likeAdVideo,cleanupAdPage } from './page-scripts.mjs'
 
 export function createAdPageController({kind,getWebview,api,state={...normalizeAdSettings(kind),ready:false,covered:false}}){
   const isVideo=kind!=='weReadAd'
+  const controls=isVideo?videoAdControls(kind):null
   let generation=0,disposed=false,queue=Promise.resolve(),cssKey=null
   function alive(){if(disposed)throw Error('广告页面已关闭')}
   function enqueue(fn){const result=queue.then(()=>{alive();return fn()});queue=result.catch(()=>{});return result}
@@ -40,7 +41,7 @@ export function createAdPageController({kind,getWebview,api,state={...normalizeA
         c.view.goBack()
         return true
       },
-      prev:()=>c.script(navigateDouyinVideo,'prev'),next:()=>c.script(navigateDouyinVideo,'next'),fullscreen:()=>c.script(toggleDouyinFullscreen),play:()=>c.script(toggleDouyinPlayback),like:()=>c.script(likeAdVideo)
+      prev:()=>c.script(navigateAdVideo,controls,'prev'),next:()=>c.script(navigateAdVideo,controls,'next'),fullscreen:()=>c.script(toggleAdVideoFullscreen,controls),play:()=>c.script(toggleAdVideoPlayback,controls),like:()=>c.script(likeAdVideo,controls)
     }[name]
     if(!isVideo||!fn)throw Error('不支持的广告操作');return fn()
   })

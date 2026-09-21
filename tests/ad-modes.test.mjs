@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { EventEmitter } from 'node:events'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import vm from 'node:vm'
 import { compileScript, parse } from '@vue/compiler-sfc'
 import { Window } from 'happy-dom'
 const modulePath = '../src/shared/ad-modes.mjs'
@@ -216,5 +217,112 @@ test('shared controller prepares, controls and cleans every video ad kind',async
     await page.action('next')
     await page.dispose()
     assert.ok(scripts.at(-1).includes('__moyuAdVideoFit'),`${kind} cleaned injected page state`)
+  }
+})
+
+const adVideoControls=async()=>{
+  try{return await import('../src/renderer/src/features/ad-modes/video-controls.mjs')}
+  catch(error){if(error.code==='ERR_MODULE_NOT_FOUND')return {};throw error}
+}
+const runAdScript=(fn,document,window,platform,...args)=>vm.runInNewContext(
+  `(${fn.toString()})(${[platform,...args].map(value=>JSON.stringify(value)).join(',')})`,
+  {document,window,KeyboardEvent:class{constructor(type,props){Object.assign(this,{type},props)}}}
+)
+
+test('video advertisement controls are deeply immutable and platform specific',async()=>{
+  const {VIDEO_AD_CONTROLS,videoAdControls}=await adVideoControls()
+  assert.equal(typeof videoAdControls,'function')
+  assert.ok(Object.isFrozen(VIDEO_AD_CONTROLS))
+  for(const kind of ['douyin','bilibili','huya','douyu','kuaishou']){
+    const controls=videoAdControls(kind)
+    assert.ok(Object.isFrozen(controls));assert.ok(Object.isFrozen(controls.fullscreen));assert.ok(Object.isFrozen(controls.next));assert.ok(Object.isFrozen(controls.prev))
+  }
+  assert.equal(videoAdControls('douyin').keyboardFallback,true)
+  assert.equal(videoAdControls('bilibili').keyboardFallback,false)
+  assert.equal(videoAdControls('huya').keyboardFallback,false)
+  assert.equal(videoAdControls('douyu').keyboardFallback,false)
+  assert.equal(videoAdControls('kuaishou').keyboardFallback,true)
+  assert.match(videoAdControls('bilibili').next[0],/bpx/)
+  assert.match(videoAdControls('huya').fullscreen[0],/player-fullscreen/)
+  assert.equal(videoAdControls('douyu').next.length,0)
+  assert.throws(()=>videoAdControls('__proto__'),/不支持/)
+})
+
+test('advertisement scripts use each platform controls without unsafe navigation fallbacks',async()=>{
+  const {navigateAdVideo,toggleAdVideoFullscreen}=await import('../src/renderer/src/features/ad-modes/page-scripts.mjs')
+  const {videoAdControls}=await adVideoControls()
+  assert.equal(typeof navigateAdVideo,'function');assert.equal(typeof toggleAdVideoFullscreen,'function')
+  for(const [kind,nextSelector,fullscreenSelector] of [
+    ['bilibili','.bpx-player-ctrl-next','.bpx-player-ctrl-full'],
+    ['huya',null,'.player-fullscreen-btn']
+  ]){
+    const clicked=[]
+    const document={body:{},documentElement:{},querySelector:selector=>selector===nextSelector||selector===fullscreenSelector?{disabled:false,click:()=>clicked.push(selector)}:null}
+    if(nextSelector){const result=runAdScript(navigateAdVideo,document,{},videoAdControls(kind),'next');assert.equal(result.method,'button');assert.equal(result.selector,nextSelector)}
+    const fullscreen=runAdScript(toggleAdVideoFullscreen,document,{},videoAdControls(kind));assert.equal(fullscreen.clicked,true);assert.equal(fullscreen.selector,fullscreenSelector)
+    assert.deepEqual(clicked,nextSelector?[nextSelector,fullscreenSelector]:[fullscreenSelector])
+  }
+  for(const kind of ['bilibili','huya','douyu']){
+    let keys=0
+    const document={querySelector:()=>null,dispatchEvent:()=>{keys++},activeElement:null}
+    assert.throws(()=>runAdScript(navigateAdVideo,document,{},videoAdControls(kind),'next'),/未找到|直播/)
+    assert.equal(keys,0,`${kind} must not dispatch direction keys`)
+  }
+  const keys=[]
+  const kuaishouDocument={querySelector:()=>null,activeElement:{tagName:'INPUT'},dispatchEvent:event=>keys.push(event.key)}
+  const fallback=runAdScript(navigateAdVideo,kuaishouDocument,{},videoAdControls('kuaishou'),'next');assert.equal(fallback.method,'keyboard-fallback');assert.equal(fallback.verified,false)
+  assert.deepEqual(keys,['ArrowDown','ArrowDown'])
+})
+
+test('advertisement likes click configured controls and reject unsupported live platforms',async()=>{
+  const {likeAdVideo}=await import('../src/renderer/src/features/ad-modes/page-scripts.mjs')
+  const {videoAdControls}=await adVideoControls()
+  for(const kind of ['douyin','bilibili','kuaishou']){
+    const selector=videoAdControls(kind).like[0];let clicked=0
+    const document={querySelector:value=>value===selector?{disabled:false,click:()=>{clicked++}}:null}
+    const result=runAdScript(likeAdVideo,document,{},videoAdControls(kind));assert.equal(result.clicked,true);assert.equal(result.selector,selector)
+    assert.equal(clicked,1)
+  }
+  for(const kind of ['huya','douyu']){
+    const document={querySelector:()=>assert.fail('unsupported platform must not probe random like controls')}
+    assert.throws(()=>runAdScript(likeAdVideo,document,{},videoAdControls(kind)),/该平台当前不支持点赞/)
+  }
+})
+
+test('controller executes real Bilibili controls and exposes Huya shortcut failures without leaking subscriptions',async()=>{
+  const {createAdPageController}=await import('../src/renderer/src/features/ad-modes/controller.mjs')
+  const {normalizeAdSettings}=await shared()
+  const clicked=[]
+  const guestControlDocument={body:{},documentElement:{},querySelector:selector=>['.bpx-player-ctrl-next','.bpx-player-ctrl-full'].includes(selector)?{disabled:false,click:()=>clicked.push(selector)}:null}
+  const view={executeJavaScript:async code=>vm.runInNewContext(code,{document:guestControlDocument,window:{},KeyboardEvent:class{constructor(type,props){Object.assign(this,{type},props)}}})}
+  const page=createAdPageController({kind:'bilibili',getWebview:()=>view,api:{},state:{...normalizeAdSettings('bilibili'),ready:true,covered:false}})
+  await page.action('next');await page.action('fullscreen')
+  assert.deepEqual(clicked,['.bpx-player-ctrl-next','.bpx-player-ctrl-full'])
+
+  const browser=new Window({url:'http://localhost/'})
+  const previous={}
+  for(const [name,value] of Object.entries({window:browser,document:browser.document,navigator:browser.navigator,history:browser.history,location:browser.location,Node:browser.Node,Element:browser.Element,HTMLElement:browser.HTMLElement,SVGElement:browser.SVGElement,Event:browser.Event,MouseEvent:browser.MouseEvent,MutationObserver:browser.MutationObserver,getComputedStyle:browser.getComputedStyle.bind(browser)})){
+    previous[name]=Object.getOwnPropertyDescriptor(globalThis,name);Object.defineProperty(globalThis,name,{configurable:true,writable:true,value})
+  }
+  const ipcHandlers=new Map(),bridgeHandlers=new Set()
+  browser.ipcRenderer={on:(channel,callback)=>{ipcHandlers.set(channel,callback);return()=>ipcHandlers.delete(channel)},invoke:async()=>({})}
+  browser.adModeControl={onState:callback=>{bridgeHandlers.add(callback);return()=>bridgeHandlers.delete(callback)},onError:callback=>{bridgeHandlers.add(callback);return()=>bridgeHandlers.delete(callback)},getSettings:async()=>({}),getState:async()=>({covered:false,expanded:false,opacity:1}),saveSettings:async()=>({}),openTransparent:async()=>{}}
+  let wrapper
+  try{
+    const [{mount,flushPromises},{h,nextTick},{useAdPage}]=await Promise.all([import('@vue/test-utils'),import('vue'),import('../src/renderer/src/features/ad-modes/use-ad-page.mjs')])
+    let model
+    const Host={setup(){model=useAdPage('huya');return()=>h('span',{class:'visible-error'},model.error.value)}}
+    wrapper=mount(Host,{attachTo:document.body});await flushPromises()
+    const guestDocument={querySelector:()=>null,activeElement:null,dispatchEvent:()=>assert.fail('Huya must not use direction keys')}
+    model.wv.value={executeJavaScript:async code=>vm.runInNewContext(code,{document:guestDocument,window:{},KeyboardEvent:class{constructor(type,props){Object.assign(this,{type},props)}}})}
+    model.state.ready=true
+    ipcHandlers.get('all-next')();await new Promise(resolve=>setImmediate(resolve));await nextTick()
+    const visibleError=wrapper.get('.visible-error').text()
+    wrapper.unmount();wrapper=null;await new Promise(resolve=>setImmediate(resolve))
+    assert.match(visibleError,/虎牙.*未找到|直播/)
+    assert.equal(ipcHandlers.size,0);assert.equal(bridgeHandlers.size,0)
+  }finally{
+    wrapper?.unmount();browser.close()
+    for(const [name,descriptor]of Object.entries(previous))descriptor?Object.defineProperty(globalThis,name,descriptor):delete globalThis[name]
   }
 })

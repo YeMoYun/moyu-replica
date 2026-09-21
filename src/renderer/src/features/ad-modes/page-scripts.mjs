@@ -29,11 +29,40 @@ export function prepareAdVideo(){
   window.__moyuAdVideoFit={observer,refresh};refresh()
   return true
 }
-export function likeAdVideo(){
-  for(const selector of ['button[aria-label*="点赞"]','[data-e2e="video-player-digg"]','[data-e2e="video-like"]']){
-    const button=document.querySelector(selector);if(button&&!button.disabled){button.click();return true}
+export function navigateAdVideo(platform,direction){
+  if(!['prev','next'].includes(direction))throw Error('视频切换方向无效')
+  for(const selector of platform[direction]){
+    const button=document.querySelector(selector)
+    if(button&&!button.disabled){button.click();return {method:'button',selector}}
   }
-  throw Error('当前页面未找到点赞按钮，请确认已登录并进入视频页面')
+  if(!platform.keyboardFallback)throw Error(`${platform.name}当前页面未找到上一条/下一条控件；直播或单视频页面可能不支持切换。`)
+  const key=direction==='next'?'ArrowDown':'ArrowUp',focused=document.activeElement
+  const target=focused&&!/^(INPUT|TEXTAREA|SELECT)$/.test(focused.tagName)&&!focused.isContentEditable?focused:document
+  for(const type of ['keydown','keyup'])target.dispatchEvent(new KeyboardEvent(type,{key,code:key,bubbles:true,cancelable:true}))
+  return {method:'keyboard-fallback',verified:false}
+}
+export function toggleAdVideoFullscreen(platform){
+  for(const selector of platform.fullscreen){
+    const button=document.querySelector(selector)
+    if(button&&button!==document.body&&button!==document.documentElement&&!button.disabled){button.click();return {clicked:true,selector}}
+  }
+  throw Error(`${platform.name}当前页面未找到可操作的视频控件（全屏）`)
+}
+export async function toggleAdVideoPlayback(platform){
+  const videos=[...document.querySelectorAll('video')]
+  if(!videos.length)throw Error(`${platform.name}当前页面未找到可操作的视频控件（播放/暂停）`)
+  const pause=videos.some(video=>!video.paused)
+  if(pause)videos.forEach(video=>video.pause())
+  else await Promise.all(videos.map(video=>video.play()))
+  return {paused:pause,count:videos.length}
+}
+export function likeAdVideo(platform){
+  if(!platform.likeSupported)throw Error(`${platform.name}该平台当前不支持点赞`)
+  for(const selector of platform.like){
+    const button=document.querySelector(selector)
+    if(button&&!button.disabled){button.click();return {clicked:true,selector}}
+  }
+  throw Error(`${platform.name}当前页面未找到点赞按钮，请确认已登录并进入视频页面`)
 }
 export function cleanupAdPage(){
   const fit=window.__moyuAdVideoFit
