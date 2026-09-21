@@ -25,6 +25,7 @@ import { createChatWindowController } from './chat-window-controls.mjs'
 import { createChatService } from './chat-service.mjs'
 import { createRegisteredAdOpener, createVideoModeLauncher } from './video-mode-launcher.mjs'
 import { createVideoModeIpcHandlers } from './video-mode-ipc.mjs'
+import { transferToTransparentGuest } from './ad-transparent-transfer.mjs'
 import { validateChatGuestAttachment } from './chat-guest-policy.mjs'
 import { validateChatUrl } from '../shared/chat-state.mjs'
 import { AD_MODES, normalizeAdSettings, normalizeAdPatch, validateAdUrl } from '../shared/ad-modes.mjs'
@@ -495,17 +496,14 @@ function registerIpc() {
     const key=adKind(event),address=validateAdUrl(key,url),targetKey=AD_MODES[key].transparentKey
     const target=openSite(targetKey)
     // Only navigate through the existing renderer; never write transparent preferences here.
-    for(let attempt=0;attempt<100;attempt++) {
-      if(target.isDestroyed()||target.webContents.isDestroyed()) throw new Error('目标透明窗口已关闭')
-      const ready=await target.webContents.executeJavaScript('Boolean(document.querySelector("webview"))').catch(()=>false)
-      if(ready) {
-        await target.webContents.executeJavaScript(`document.querySelector('webview').loadURL(${JSON.stringify(address)})`)
-        if(windows.get(key)&&!windows.get(key).isDestroyed()) adWindowControls.close(key)
+    return transferToTransparentGuest({
+      target,
+      address,
+      closeAd: () => {
+        if(windows.get(key)&&!windows.get(key).isDestroyed()) return adWindowControls.close(key)
         return true
       }
-      await new Promise(resolve=>setTimeout(resolve,100))
-    }
-    throw new Error('透明窗口尚未准备好，请重试')
+    })
   })
   handle('window-control:get-state', (event) => windowControls.state(keyFromSender(event)))
   handle('window-control:set-opacity', (event, value) => windowControls.setOpacity(keyFromSender(event), value))
