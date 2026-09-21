@@ -5,6 +5,11 @@ import { createEventSubscriptions } from './events.mjs'
 const subscriptions = createEventSubscriptions(ipcRenderer)
 const on = (channel) => (cb) => subscriptions.on(channel, cb)
 
+contextBridge.exposeInMainWorld('videoModeControl', {
+  open: (platform, mode) => ipcRenderer.invoke('video-mode:open', platform, mode),
+  openRecentChat: skin => ipcRenderer.invoke('video-mode:open-recent-chat', skin)
+})
+
 contextBridge.exposeInMainWorld('chatModeControl', {
   open: address => ipcRenderer.invoke('chat-mode:open', address),
   get: () => ipcRenderer.invoke('chat-mode:get'),

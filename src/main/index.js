@@ -23,6 +23,7 @@ import { createWindowController } from './window-controls.mjs'
 import { createAdWindowController } from './ad-window-controls.mjs'
 import { createChatWindowController } from './chat-window-controls.mjs'
 import { createChatService } from './chat-service.mjs'
+import { createVideoModeLauncher } from './video-mode-launcher.mjs'
 import { validateChatGuestAttachment } from './chat-guest-policy.mjs'
 import { validateChatUrl } from '../shared/chat-state.mjs'
 import { AD_MODES, normalizeAdSettings, normalizeAdPatch, validateAdUrl } from '../shared/ad-modes.mjs'
@@ -58,6 +59,7 @@ let chatWindowControls = null
 let chatService = null
 let dingtalkService = null
 let feishuService = null
+let videoModeLauncher = null
 let shortcutManager = null
 let shortcutStatus = { success: false, errors: [] }
 let tray = null
@@ -420,6 +422,16 @@ function registerStyleControls(prefix, key) {
 }
 
 function registerIpc() {
+  handle('video-mode:open', (event, platform, mode) => {
+    if (keyFromSender(event)!=='main') throw new Error('仅主窗口可打开视频模式')
+    videoModeLauncher.open(platform, mode)
+    return true
+  })
+  handle('video-mode:open-recent-chat', (event, skin) => {
+    if (keyFromSender(event)!=='main') throw new Error('仅主窗口可打开伪装模式')
+    videoModeLauncher.openRecentChat(skin)
+    return true
+  })
   const requireWechat = event => { if (keyFromSender(event) !== 'wechat') throw Error('仅微信窗口可操作聊天配置') }
   const requireWechatLegacy = event => { if (!['wechat','wechatConfig'].includes(keyFromSender(event))) throw Error('仅微信窗口可操作旧聊天配置') }
   handle('chat-mode:get', event => { requireWechat(event); return chatService.get() })
@@ -874,6 +886,21 @@ app.whenReady().then(() => {
     const win=windows.get('feishu')
     if(win&&!win.isDestroyed()&&!win.webContents.isDestroyed())win.webContents.send('feishu-mode:updated',state)
   }})
+  videoModeLauncher=createVideoModeLauncher({
+    openAd:key=>{
+      if(!Object.hasOwn(AD_MODES,key))throw new Error(`${key} 广告模式尚未接入`)
+      return openSite(key)
+    },
+    openOpacity:key=>openSite(key),
+    openChat:(platform,skin)=>{
+      if(platform!=='douyin')throw new Error('该平台伪装模式尚未接入')
+      const key={wechat:'wechat',dingtalk:'dingding',feishu:'feishu'}[skin]
+      if(!key)throw new Error('不支持的伪装界面')
+      return openSite(key)
+    },
+    readRecent:skin=>settings.get(`videoModes.lastPlatform.${skin}`),
+    writeRecent:(skin,platform)=>settings.set(`videoModes.lastPlatform.${skin}`,platform)
+  })
   registerIpc()
   mainWindow = makeWindow('main', {
     width: 1000,
