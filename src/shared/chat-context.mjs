@@ -27,11 +27,11 @@ const ROUTES = Object.freeze({
 })
 
 function skinKey(value) {
-  if (!CHAT_SKINS.includes(value)) throw new Error('不支持的伪装界面')
+  if (typeof value !== 'string' || !CHAT_SKINS.includes(value)) throw new Error('不支持的伪装界面')
   return value
 }
 
-export function chatContext(platform = 'douyin', skin = 'wechat') {
+export function chatContext(platform, skin) {
   const site = videoPlatform(platform).key
   const type = skinKey(skin)
   const legacy = site === 'douyin'

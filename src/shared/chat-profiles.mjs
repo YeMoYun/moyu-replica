@@ -3,7 +3,7 @@ export const CHAT_PROFILES=Object.freeze({
   dingtalk:Object.freeze({key:'dingtalk',avatars:Object.freeze(['blue','green','purple','orange','file','self'])}),
   feishu:Object.freeze({key:'feishu',avatars:Object.freeze(['blue','green','purple','orange','bot','self'])})
 })
-export function chatProfile(key='wechat'){const p=CHAT_PROFILES[key];if(!p)throw Error('聊天平台不支持');return p}
+export function chatProfile(key){if(typeof key!=='string'||!Object.hasOwn(CHAT_PROFILES,key))throw Error('聊天平台不支持');return CHAT_PROFILES[key]}
 export function createDingTalkConversations(msg){return [
   {id:'group',name:'研发项目组',contact:'林晓',avatar:'blue',memberCount:8,unread:0,messages:[msg(1,'other','上午的更新已经整理到共享文档，大家有空看一下。','10:08','林晓'),msg(2,'self','收到，我先看一下，下午一起对齐。','10:09')]},
   {id:'lin',name:'林晓',contact:'林晓',avatar:'green',memberCount:0,unread:2,messages:[msg(5,'other','今天下午三点方便沟通吗？','09:56')]},

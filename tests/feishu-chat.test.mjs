@@ -15,6 +15,16 @@ test('feishu starts with approved ten conversations and a local card but no web 
   assert.deepEqual(state.ui,{hiddenAnnouncements:[]})
   assert.deepEqual(validateChatState(state,'feishu'),state)
 })
+test('feishu seed and media card remain unchanged on every additional video platform',()=>{
+  const base=createChatState('feishu')
+  for(const platform of ['bilibili','huya','douyu','kuaishou']){
+    const state=createChatState('feishu',platform)
+    assert.deepEqual(state.conversations,base.conversations)
+    assert.deepEqual(state.ui,base.ui)
+    assert.equal(state.settings.site,platform)
+    assert.deepEqual(validateChatState(state,'feishu',platform),state)
+  }
+})
 
 test('feishu media cards are local, bounded and forbidden in other profiles',()=>{
   const state=createChatState('feishu'),card=state.conversations[0].messages.find(m=>m.type==='media-card')

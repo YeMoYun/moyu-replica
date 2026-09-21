@@ -8,6 +8,15 @@ test('dingtalk profile starts with approved five conversations and no automatic 
   assert.equal(s.selectedId,'group');assert.equal(s.conversations.flatMap(c=>c.messages).some(m=>m.type==='player'),false)
   assert.deepEqual(validateChatState(s,'dingtalk'),s)
 })
+test('dingtalk seed structure is unchanged on every additional video platform',()=>{
+  const expected=createChatState('dingtalk').conversations.map(c=>c.name)
+  for(const platform of ['bilibili','huya','douyu','kuaishou']){
+    const state=createChatState('dingtalk',platform)
+    assert.deepEqual(state.conversations.map(c=>c.name),expected)
+    assert.equal(state.settings.site,platform)
+    assert.deepEqual(validateChatState(state,'dingtalk',platform),state)
+  }
+})
 test('wechat and dingtalk avatar vocabularies cannot cross',()=>{
   const ding=createChatState('dingtalk'),wx=createChatState();ding.conversations[0].avatar='manager';wx.conversations[0].avatar='blue'
   assert.throws(()=>validateChatState(ding,'dingtalk'),/头像/);assert.throws(()=>validateChatState(wx),/头像/)

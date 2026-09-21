@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  VIDEO_PLATFORM_ORDER, VIDEO_MODE_ORDER, VIDEO_PLATFORMS, videoPlatform, resolveVideoMode
+  VIDEO_PLATFORM_ORDER, VIDEO_MODE_ORDER, VIDEO_PLATFORMS, videoPlatform, resolveVideoMode,
+  validateVideoPlatformUrl
 } from '../src/shared/video-platforms.mjs'
 
 test('the approved five platforms and five modes have stable order', () => {
@@ -41,4 +42,30 @@ test('each platform resolves ad, existing opacity and three chat targets', () =>
   }
   assert.throws(() => videoPlatform('unknown'), /视频平台/)
   assert.throws(() => resolveVideoMode('douyin','excel'), /视频模式/)
+})
+
+test('platform URL validation accepts only its own official HTTP(S) hosts', () => {
+  assert.equal(validateVideoPlatformUrl('bilibili','https://www.bilibili.com/video/BV1'),'https://www.bilibili.com/video/BV1')
+  assert.equal(validateVideoPlatformUrl('huya','http://www.huya.com/123'),'http://www.huya.com/123')
+  assert.equal(validateVideoPlatformUrl('douyu','https://v.douyu.com/show/abc'),'https://v.douyu.com/show/abc')
+  assert.equal(validateVideoPlatformUrl('kuaishou','https://www.kuaishou.com/short-video/abc'),'https://www.kuaishou.com/short-video/abc')
+
+  for (const value of [
+    'javascript:alert(1)',
+    'ftp://www.huya.com/123',
+    'https://user:pass@www.huya.com/',
+    'https://huya.com.evil.test/',
+    'https://www.douyu.com/1',
+    'https://huy\u0430.com/'
+  ]) assert.throws(() => validateVideoPlatformUrl('huya',value))
+})
+
+test('platform URL validation rejects implicit coercion and invalid platform keys', () => {
+  const trap={toString(){throw new Error('must not coerce')}}
+  for (const value of [undefined,null,123,new String('https://www.huya.com/'),new URL('https://www.huya.com/'),trap]) {
+    assert.throws(() => validateVideoPlatformUrl('huya',value), /地址|文字/)
+  }
+  for (const platform of [undefined,null,123,new String('huya'),trap,'__proto__','constructor','prototype']) {
+    assert.throws(() => validateVideoPlatformUrl(platform,'https://www.huya.com/'), /视频平台/)
+  }
 })

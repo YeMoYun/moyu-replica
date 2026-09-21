@@ -6,6 +6,7 @@ import {
   chatContext,
   chatContextFromWindowKey
 } from '../src/shared/chat-context.mjs'
+import {chatProfile} from '../src/shared/chat-profiles.mjs'
 
 const allContexts = () => VIDEO_PLATFORM_ORDER.flatMap(platform =>
   CHAT_SKINS.map(skin => chatContext(platform, skin))
@@ -72,5 +73,15 @@ test('unknown prototype and malformed keys are rejected safely', () => {
   }
   for (const windowKey of ['chat-evil-wechat', '__proto__', '', null, {}, new String('wechat')]) {
     assert.throws(() => chatContextFromWindowKey(windowKey), /聊天窗口/)
+  }
+})
+
+test('context and profile APIs require primitive explicit identity strings', () => {
+  const trap={toString(){throw new Error('must not coerce')}}
+  for(const args of [[],[undefined,'wechat'],['douyin',undefined],[null,'wechat'],['douyin',null],[new String('douyin'),'wechat'],['douyin',new String('wechat')],[trap,'wechat'],['douyin',trap]]){
+    assert.throws(()=>chatContext(...args),/视频平台|伪装界面/)
+  }
+  for(const skin of [undefined,null,123,new String('wechat'),trap,'__proto__','constructor','prototype']){
+    assert.throws(()=>chatProfile(skin),/聊天平台/)
   }
 })
