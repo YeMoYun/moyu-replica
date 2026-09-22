@@ -16,7 +16,8 @@
     "test:video-opacity": "node scripts/run-video-opacity-smoke.mjs",
     "test:huya-window-fill": "node scripts/run-huya-window-fill-smoke.mjs",
     "test:reading-sites": "node scripts/run-reading-sites-smoke.mjs",
-    "test:ad-modes": "node scripts/run-ad-modes-smoke.mjs"
+    "test:ad-modes": "node scripts/run-ad-modes-smoke.mjs",
+    "test:video-chat-matrix": "node scripts/run-video-chat-matrix-smoke.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
