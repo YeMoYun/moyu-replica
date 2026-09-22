@@ -16,14 +16,14 @@
     </section>
     <main class="chat-panel">
       <header class="chat-header"><div class="chat-title"><button class="icon-button mobile-list" title="会话列表" aria-label="会话列表" @click="showList=!showList"><ChatIcon name="menu" /></button><h2>{{ chat.name }} <span v-if="chat.memberCount" class="member-count">({{ chat.memberCount }})</span></h2></div><div class="header-actions"><button class="icon-button" data-action="more" title="更多设置" aria-label="更多设置" :aria-expanded="more" @click.stop="more=!more"><ChatIcon name="more" /></button><button class="icon-button" data-action="close" title="关闭窗口" aria-label="关闭窗口" @click="close"><ChatIcon name="close" /></button></div></header>
-      <div v-if="more" class="wechat-more-menu" role="menu" aria-label="微信更多菜单" @click.stop><button data-action="settings" @click="openSettings">播放器设置</button><button data-action="config" @click="openConfig">聊天配置</button><button data-action="menu-insert" @click="insert">插入抖音播放器</button></div>
+      <div v-if="more" class="wechat-more-menu" role="menu" aria-label="微信更多菜单" @click.stop><button data-action="settings" @click="openSettings">播放器设置</button><button data-action="config" @click="openConfig">聊天配置</button><button data-action="menu-insert" @click="insert">插入{{platformLabel}}播放器</button></div>
       <div class="all-messages">
         <section v-for="c in state.conversations" v-show="c.id === state.selectedId" :key="c.id" class="messages" :data-conversation="c.id">
           <div v-if="c.messages.length" class="date-line">{{ c.messages[0].time }}</div>
           <div v-for="m in c.messages" :key="m.id" class="message-row" :class="[m.sender,m.type+'-message']" :data-message="m.id">
             <img class="avatar" :src="messageAvatar(c,m)" :alt="m.sender==='self'?state.selfName:(m.name||c.contact)" />
             <div class="content-wrap"><span v-if="m.sender==='other' && c.memberCount" class="sender-name">{{ m.name||c.contact }}</span>
-              <ChatPlayer v-if="m.type==='player'" :message="m" :settings="state.settings" :covered="covered" :active="c.id===state.selectedId" @navigate="address=>saveNavigation(c.id,m.id,address)" @error="message=>error=message" />
+              <ChatPlayer v-if="m.type==='player'" :platform="platform.platform" :label="platform.definition.label" :partition="platform.partition" :message="m" :settings="state.settings" :covered="covered" :active="c.id===state.selectedId" @navigate="address=>saveNavigation(c.id,m.id,address)" @error="message=>error=message" />
               <div v-else class="bubble">{{ m.text }}</div>
             </div>
           </div>
@@ -36,14 +36,14 @@
       <section class="chat-dialog" :class="{'config-dialog':dialog==='config'}" role="dialog" aria-modal="true" :aria-label="dialog==='settings'?'播放器设置':'聊天配置'">
         <header><h3>{{ dialog==='settings'?'播放器设置':'聊天配置' }}</h3><button class="icon-button" data-action="close-dialog" aria-label="关闭面板" @click="dialog=''"><ChatIcon name="close" /></button></header>
         <div v-if="dialog==='settings'" class="dialog-body">
-          <p class="dialog-note">本批已接入抖音真实网页；微信消息仅保存在本机。</p>
-          <label>应用 / 站点<select disabled><option>抖音</option></select></label>
-          <label>抖音页面地址<input v-model="addressInput" aria-label="抖音页面地址" @keydown.enter="applyAddress" /><button class="plain-button" data-action="apply-address" @click="applyAddress">应用到当前播放器</button></label>
+          <p class="dialog-note">本窗口已接入{{platformLabel}}真实网页；微信消息仅保存在本机。</p>
+          <label>应用 / 站点<select disabled><option>{{platformLabel}}</option></select></label>
+          <label>{{platformLabel}}页面地址<input v-model="addressInput" :aria-label="platformLabel+'页面地址'" @keydown.enter="applyAddress" /><button class="plain-button" data-action="apply-address" @click="applyAddress">应用到当前播放器</button></label>
           <label>播放器方向<select data-setting="orientation" :value="state.settings.orientation" @change="setting('orientation',$event.target.value)"><option value="landscape">横屏</option><option value="portrait">竖屏</option></select></label>
           <label>播放器大小 {{ state.settings.scale }}%<input data-setting="scale" type="range" min="80" max="200" step="10" :value="state.settings.scale" @change="setting('scale',Number($event.target.value))" /></label>
           <label>插入时发送方<select data-setting="sender" :value="state.settings.sender" @change="setting('sender',$event.target.value)"><option value="self">自己发送</option><option value="other">对方发送</option></select></label>
           <label class="check-label"><input data-setting="mask" type="checkbox" :checked="state.settings.mask" @change="setting('mask',$event.target.checked)" />启用交互遮罩</label>
-          <p class="dialog-note">其他站点和钉钉、飞书将在后续批次接入。老板键沿用系统设置的快捷键，仅遮挡播放器。</p>
+          <p class="dialog-note">老板键沿用系统设置的快捷键，仅遮挡播放器。</p>
           <div class="dialog-footer"><button class="plain-button" @click="dialog=''">完成</button><button class="primary-button" @click="insert">插入到当前会话</button></div>
         </div>
         <div v-else class="dialog-body config-body">
@@ -65,18 +65,20 @@ import {ref,computed,onMounted,onBeforeUnmount,watch,nextTick} from 'vue'
 import ChatIcon from '../features/chat/ChatIcon.vue'
 import ChatPlayer from '../features/chat/ChatPlayer.vue'
 import {createChatController,loadChatRuntime} from '../features/chat/controller.mjs'
+import {loadChatPlatform} from '../features/chat/platform-runtime.mjs'
 import {createChatState,currentChat,sendText,insertPlayer,validateChatState,validateChatUrl,CHAT_AVATARS} from '../../../shared/chat-state.mjs'
 import '../features/chat/wechat.css'
 const avatarFiles=import.meta.glob('../assets/chat/wx-*.jpg',{eager:true,query:'?url',import:'default'})
 const avatars=Object.fromEntries(CHAT_AVATARS.map(key=>[key,avatarFiles[`../assets/chat/wx-${key}.jpg`]])),avatarKeys=CHAT_AVATARS
 const navs=[{icon:'wx-chat',label:'消息'},{icon:'wx-contacts',label:'通讯录'},{icon:'wx-moments',label:'朋友圈'},{icon:'wx-mini',label:'小程序'}]
-const inputTools=[{icon:'smile',label:'表情'},{icon:'cube',label:'收藏'},{icon:'folder',label:'插入抖音播放器'},{icon:'cut',label:'截屏'}]
-const state=ref(null),covered=ref(false),search=ref(''),draft=ref(''),error=ref(''),more=ref(false),dialog=ref(''),showList=ref(false),messageInput=ref(null),addressInput=ref(''),editConfig=ref(null),editId=ref(''),jsonInput=ref(''),configError=ref('')
-const api=window.chatModeControl,unsubscribes=[];let bossRevision=0,disposed=false
-const controller=createChatController({api,onState:s=>{state.value=s},onError:e=>{error.value=e.message}})
+const inputTools=computed(()=>[{icon:'smile',label:'表情'},{icon:'cube',label:'收藏'},{icon:'folder',label:`插入${platformLabel.value}播放器`},{icon:'cut',label:'截屏'}])
+const state=ref(null),platform=ref(null),covered=ref(false),search=ref(''),draft=ref(''),error=ref(''),more=ref(false),dialog=ref(''),showList=ref(false),messageInput=ref(null),addressInput=ref(''),editConfig=ref(null),editId=ref(''),jsonInput=ref(''),configError=ref('')
+const platformLabel=computed(()=>platform.value?.definition.label||'视频')
+const api=window.videoChatModeControl,unsubscribes=[];let bossRevision=0,disposed=false
+const controller=createChatController({api,validate:raw=>validateChatState(raw,'wechat',platform.value?.platform||raw?.settings?.site||'douyin'),onState:s=>{state.value=s},onError:e=>{error.value=e.message}})
 const chat=computed(()=>state.value?currentChat(state.value):null),filtered=computed(()=>state.value?.conversations.filter(c=>c.name.toLowerCase().includes(search.value.trim().toLowerCase()))||[])
 const editChat=computed(()=>editConfig.value?.conversations.find(c=>c.id===editId.value))
-function summary(c){const m=c.messages.at(-1);return !m?'':m.type==='player'?'[视频]':m.text}
+function summary(c){const m=c.messages.at(-1);return !m?'':m.type==='player'?`[${platformLabel.value}视频]`:m.text}
 function messageAvatar(c,m){if(m.sender==='self')return avatars.self;const names={'产品经理-老王':'manager','技术支持-小李':'support'};return avatars[names[m.name]||c.avatar]}
 function notice(label){error.value=`${label}仅保留界面外观，未连接真实微信功能。`}
 function outside(event){if(!event.target.closest('[data-action=more],.wechat-more-menu,.navigation'))more.value=false}
@@ -86,22 +88,22 @@ function select(id){more.value=false;showList.value=false;const origin=state.val
 async function scroll(id){await nextTick();if(disposed)return;const node=document.querySelector(`[data-conversation="${id}"]`);if(node)node.scrollTop=node.scrollHeight}
 async function send(){const content=draft.value,id=state.value.selectedId;if(!content.trim())return;const result=await update(s=>{const selected=s.selectedId;s.selectedId=id;sendText(s,content);s.selectedId=selected;s.drafts[id]=''});if(result&&state.value.selectedId===id&&draft.value===content)draft.value='';if(result)scroll(id)}
 function keydown(event){if(event.key!=='Enter'||event.isComposing||event.keyCode===229)return;if(event.ctrlKey||event.shiftKey){if(event.ctrlKey){event.preventDefault();const i=event.target;i.setRangeText('\n',i.selectionStart,i.selectionEnd,'end');draftInput({target:i})}return}event.preventDefault();send()}
-async function insert(){more.value=false;dialog.value='';const id=state.value.selectedId,exists=chat.value.messages.some(m=>m.type==='player');const result=await update(s=>{insertPlayer(s)});if(result){if(exists)error.value='此会话已有抖音播放器，已定位现有气泡。';scroll(id)}}
+async function insert(){more.value=false;dialog.value='';const id=state.value.selectedId,exists=chat.value.messages.some(m=>m.type==='player');const result=await update(s=>{insertPlayer(s)});if(result){if(exists)error.value=`此会话已有${platformLabel.value}播放器，已定位现有气泡。`;scroll(id)}}
 function setting(key,value){update(s=>{s.settings[key]=value})}
 function saveNavigation(chatId,messageId,address){const c=state.value.conversations.find(c=>c.id===chatId),m=c?.messages.find(m=>m.id===messageId);if(!m||m.address===address)return;update(s=>{const target=s.conversations.find(c=>c.id===chatId)?.messages.find(m=>m.id===messageId);if(target)target.address=address;s.settings.address=address})}
-async function applyAddress(){try{const address=validateChatUrl(addressInput.value),id=state.value.selectedId;await update(s=>{s.settings.address=address;const m=s.conversations.find(c=>c.id===id).messages.find(m=>m.type==='player');if(m)m.address=address})}catch(e){error.value=e.message}}
+async function applyAddress(){try{const address=validateChatUrl(addressInput.value,platform.value.platform),id=state.value.selectedId;await update(s=>{s.settings.address=address;const m=s.conversations.find(c=>c.id===id).messages.find(m=>m.type==='player');if(m)m.address=address})}catch(e){error.value=e.message}}
 function openSettings(){more.value=false;addressInput.value=state.value.settings.address;dialog.value='settings'}
-function openConfig(){more.value=false;configError.value='';editConfig.value=validateChatState(state.value);editId.value=state.value.selectedId;jsonInput.value=JSON.stringify(state.value,null,2);dialog.value='config'}
+function openConfig(){more.value=false;configError.value='';editConfig.value=validateChatState(state.value,'wechat',platform.value.platform);editId.value=state.value.selectedId;jsonInput.value=JSON.stringify(state.value,null,2);dialog.value='config'}
 function addContact(){let n=1;while(editConfig.value.conversations.some(c=>c.id==='custom'+n))n++;editConfig.value.conversations.push({id:'custom'+n,name:'新会话',contact:'联系人',avatar:'group',memberCount:0,unread:0,messages:[]});editId.value='custom'+n}
 function removeContact(){const s=editConfig.value;if(s.conversations.length===1){configError.value='至少保留一个会话';return}s.conversations=s.conversations.filter(c=>c.id!==editId.value);delete s.drafts[editId.value];if(s.selectedId===editId.value)s.selectedId=s.conversations[0].id;editId.value=s.conversations[0].id}
-async function replace(raw){try{const candidate=validateChatState(raw);const saved=await controller.update(s=>{const revision=s.revision;Object.assign(s,candidate,{revision})});editConfig.value=structuredClone(saved);editId.value=saved.selectedId;draft.value=saved.drafts[saved.selectedId]||'';jsonInput.value=JSON.stringify(saved,null,2);configError.value='';error.value='本地聊天配置已保存。'}catch(e){configError.value=e.message}}
+async function replace(raw){try{const candidate=validateChatState(raw,'wechat',platform.value.platform);const saved=await controller.update(s=>{const revision=s.revision;Object.assign(s,candidate,{revision})});editConfig.value=structuredClone(saved);editId.value=saved.selectedId;draft.value=saved.drafts[saved.selectedId]||'';jsonInput.value=JSON.stringify(saved,null,2);configError.value='';error.value='本地聊天配置已保存。'}catch(e){configError.value=e.message}}
 function applyJson(){try{return replace(JSON.parse(jsonInput.value))}catch(e){configError.value='JSON 格式错误：'+e.message}}
 function applyStructured(){return replace(editConfig.value)}
 function exportJson(){jsonInput.value=JSON.stringify(state.value,null,2)}
-function reset(){return replace(createChatState())}
+function reset(){return replace(createChatState('wechat',platform.value.platform))}
 async function close(){try{await api.close()}catch(e){error.value=e.message}}
 function escape(event){if(event.key==='Escape'){if(dialog.value)dialog.value='';else{more.value=false;showList.value=false}}}
-async function load(){error.value='';try{const revision=bossRevision;await loadChatRuntime(controller,api,runtime=>{if(disposed)return;if(revision===bossRevision)covered.value=runtime.covered;if(runtime.warning)error.value=runtime.warning});if(disposed)return;draft.value=state.value.drafts[state.value.selectedId]||'';scroll(state.value.selectedId)}catch(e){error.value=e.message}}
+async function load(){error.value='';try{platform.value=await loadChatPlatform(api,'wechat');const revision=bossRevision;await loadChatRuntime(controller,api,runtime=>{if(disposed)return;if(revision===bossRevision)covered.value=runtime.covered;if(runtime.warning)error.value=runtime.warning});if(disposed)return;draft.value=state.value.drafts[state.value.selectedId]||'';scroll(state.value.selectedId)}catch(e){error.value=e.message}}
 watch(()=>state.value?.selectedId,id=>{if(id){draft.value=state.value.drafts[id]||'';scroll(id)}})
 onMounted(()=>{unsubscribes.push(api.onState(s=>controller.accept(s)),api.onBoss(value=>{bossRevision++;covered.value=value}),api.onError(message=>{error.value=message}));document.addEventListener('keydown',escape);load()})
 onBeforeUnmount(()=>{disposed=true;controller.dispose();for(const unsubscribe of unsubscribes)unsubscribe();document.removeEventListener('keydown',escape)})

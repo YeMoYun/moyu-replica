@@ -8,6 +8,29 @@ import { Window } from 'happy-dom'
 
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
 
+async function compileChatView(projectRoot,file) {
+  const componentPath=resolve(projectRoot,'src/renderer/src/views',file)
+  const cacheDirectory=resolve(projectRoot,'node_modules/.cache/moyu-tests')
+  const compiledPath=resolve(cacheDirectory,`${file.replace('.vue','')}-${process.pid}-${Date.now()}.mjs`)
+  let source=readFileSync(componentPath,'utf8')
+  source=source
+    .replace(/import ChatIcon from[^\n;]+;?/,"const ChatIcon={setup(){return()=>null}};")
+    .replace(/import FeishuIcon from[^\n;]+;?/,"const FeishuIcon={setup(){return()=>null}};")
+    .replace(/import ChatPlayer from[^\n;]+;?/,"const ChatPlayer={props:['platform','label','partition','message','settings','covered','active'],setup(props){globalThis.__moyuChatPlayerProps.push({platform:props.platform,label:props.label,partition:props.partition,message:props.message});return()=>null}};")
+    .replace(/import ['"][^'"]+\/(wechat|dingtalk|feishu)\.css['"];?/,'')
+    .replace(/const avatarFiles=import\.meta\.glob\([^\r\n]+\)\r?\nconst avatars=[^\r\n]+/,"const avatars=Object.fromEntries(CHAT_AVATARS.map(key=>[key,'avatar:'+key])),avatarKeys=CHAT_AVATARS")
+  const {descriptor,errors}=parse(source,{filename:componentPath})
+  assert.deepEqual(errors,[])
+  const compiled=compileScript(descriptor,{id:`chat-view-${file}`,inlineTemplate:true})
+  const content=compiled.content
+    .replace(/from ['"]\.\.\/\.\.\/\.\.\/shared\/chat-state\.mjs['"]/,`from '${pathToFileURL(resolve(projectRoot,'src/shared/chat-state.mjs')).href}'`)
+    .replace(/from ['"]\.\.\/features\/chat\/controller\.mjs['"]/,`from '${pathToFileURL(resolve(projectRoot,'src/renderer/src/features/chat/controller.mjs')).href}'`)
+    .replace(/from ['"]\.\.\/features\/chat\/platform-runtime\.mjs['"]/,`from '${pathToFileURL(resolve(projectRoot,'src/renderer/src/features/chat/platform-runtime.mjs')).href}'`)
+  mkdirSync(cacheDirectory,{recursive:true})
+  writeFileSync(compiledPath,content,'utf8')
+  return compiledPath
+}
+
 test('approved chat views use optional platform routes while legacy URLs still match', async () => {
   const routes = read('src/renderer/src/router/index.js')
   for (const [route, view] of [['wechat', 'WechatView'], ['dingding', 'DingTalkView'], ['feishu', 'FeishuView']]) {
@@ -84,6 +107,70 @@ test('renderer runtime propagates getContext rejection unchanged', async () => {
   const {loadChatPlatform}=await import('../src/renderer/src/features/chat/platform-runtime.mjs')
   const failure=new Error('bridge unavailable')
   await assert.rejects(loadChatPlatform({getContext:async()=>{throw failure}},'wechat'),error=>error===failure)
+})
+
+test('approved chat views use the generic bridge and immutable dynamic player context',()=>{
+  for(const file of ['WechatView.vue','DingTalkView.vue','FeishuView.vue']){
+    const source=read('src/renderer/src/views/'+file)
+    assert.match(source,/window\.videoChatModeControl/)
+    assert.match(source,/loadChatPlatform/)
+    assert.match(source,/:platform="platform\.platform"/)
+    assert.match(source,/:partition="platform\.partition"/)
+    assert.match(source,/:label="platform\.definition\.label"/)
+    assert.doesNotMatch(source,/window\.(chatModeControl|dingtalkModeControl|feishuModeControl)/)
+    assert.doesNotMatch(source,/插入抖音播放器|抖音页面地址|本批已接入抖音|persist:moyu-chat-(wechat|dingtalk|feishu)/)
+  }
+})
+
+test('B站 context loads through all three approved skins and rejects a cross-site address without saving',async()=>{
+  const projectRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..')
+  const window=new Window({url:'http://localhost/'})
+  const previous={}
+  const compiled=[]
+  for(const [name,value] of Object.entries({window,document:window.document,navigator:window.navigator,Node:window.Node,Element:window.Element,HTMLElement:window.HTMLElement,SVGElement:window.SVGElement,Event:window.Event,CustomEvent:window.CustomEvent,MutationObserver:window.MutationObserver,getComputedStyle:window.getComputedStyle.bind(window)})){
+    previous[name]=Object.getOwnPropertyDescriptor(globalThis,name)
+    Object.defineProperty(globalThis,name,{configurable:true,writable:true,value})
+  }
+  try{
+    const [{mount},{nextTick},chatState]=await Promise.all([import('@vue/test-utils'),import('vue'),import('../src/shared/chat-state.mjs')])
+    for(const [file,skin,partition] of [
+      ['WechatView.vue','wechat','persist:moyu-chat-bilibili-wechat'],
+      ['DingTalkView.vue','dingtalk','persist:moyu-chat-bilibili-dingtalk'],
+      ['FeishuView.vue','feishu','persist:moyu-chat-bilibili-feishu']
+    ]){
+      const state=chatState.createChatState(skin,'bilibili')
+      chatState.insertPlayer(state)
+      let saves=0
+      const api={
+        getContext:async()=>({platform:'bilibili',skin,partition}),
+        getRuntime:async()=>({covered:false}),get:async()=>structuredClone(state),
+        save:async candidate=>{saves++;return {...structuredClone(candidate),revision:candidate.revision+1}},
+        close:async()=>{},onState:()=>()=>{},onBoss:()=>()=>{},onError:()=>()=>{}
+      }
+      window.videoChatModeControl=api
+      globalThis.__moyuChatPlayerProps=[]
+      const compiledPath=await compileChatView(projectRoot,file);compiled.push(compiledPath)
+      const View=(await import(`${pathToFileURL(compiledPath).href}?test=${Date.now()}`)).default
+      const wrapper=mount(View,{attachTo:document.body})
+      for(let attempt=0;attempt<20&&!wrapper.attributes('data-chat-ready');attempt++){await new Promise(resolve=>setTimeout(resolve,0));await nextTick()}
+      assert.equal(wrapper.attributes('data-chat-ready'),'true',`${skin} should load`)
+      assert.deepEqual(globalThis.__moyuChatPlayerProps.at(-1),{platform:'bilibili',label:'B站',partition,message:state.conversations.find(c=>c.id===state.selectedId).messages.at(-1)})
+      if(!wrapper.find('[data-action="settings"]').exists()){await wrapper.find('[data-action="more"]').trigger('click');await nextTick()}
+      const settings=wrapper.find('[data-action="settings"]');assert.equal(settings.exists(),true,`${skin} settings trigger`);await settings.trigger('click');await nextTick()
+      const input=wrapper.find('input[aria-label="B站页面地址"]');assert.equal(input.exists(),true,`${skin} dynamic address label`)
+      await input.setValue('https://www.huya.com/123')
+      await wrapper.find('[data-action="apply-address"]').trigger('click');await nextTick()
+      assert.equal(saves,0,`${skin} must reject cross-site address before save`)
+      assert.match(wrapper.text(),/仅支持无凭据的B站官方/)
+      wrapper.unmount()
+    }
+  }finally{
+    delete globalThis.__moyuChatPlayerProps
+    delete window.videoChatModeControl
+    window.close()
+    for(const path of compiled)if(existsSync(path))rmSync(path)
+    for(const [name,descriptor]of Object.entries(previous))descriptor?Object.defineProperty(globalThis,name,descriptor):delete globalThis[name]
+  }
 })
 
 test('shared player requires and uses immutable platform context', async () => {
