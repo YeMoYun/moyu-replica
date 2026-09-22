@@ -117,12 +117,14 @@ test('approved chat views use the generic bridge and immutable dynamic player co
     assert.match(source,/:platform="platform\.platform"/)
     assert.match(source,/:partition="platform\.partition"/)
     assert.match(source,/:label="platform\.definition\.label"/)
+    assert.match(source,/v-if="state && platform"/)
+    assert.doesNotMatch(source,/raw\?\.settings\?\.site/)
     assert.doesNotMatch(source,/window\.(chatModeControl|dingtalkModeControl|feishuModeControl)/)
     assert.doesNotMatch(source,/插入抖音播放器|抖音页面地址|本批已接入抖音|persist:moyu-chat-(wechat|dingtalk|feishu)/)
   }
 })
 
-test('B站 context loads through all three approved skins and rejects a cross-site address without saving',async()=>{
+test('all three skins wait for trusted B站 context and never subscribe after failed or abandoned startup',async()=>{
   const projectRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..')
   const window=new Window({url:'http://localhost/'})
   const previous={}
@@ -138,22 +140,29 @@ test('B站 context loads through all three approved skins and rejects a cross-si
       ['DingTalkView.vue','dingtalk','persist:moyu-chat-bilibili-dingtalk'],
       ['FeishuView.vue','feishu','persist:moyu-chat-bilibili-feishu']
     ]){
-      const state=chatState.createChatState(skin,'bilibili')
-      chatState.insertPlayer(state)
-      let saves=0
+      const state=chatState.createChatState(skin,'bilibili');chatState.insertPlayer(state)
+      const early=chatState.createChatState(skin,'huya');early.revision=99;chatState.insertPlayer(early)
+      let resolveContext,saves=0
+      const context=new Promise(resolve=>{resolveContext=resolve})
+      const stateSubscribers=[]
       const api={
-        getContext:async()=>({platform:'bilibili',skin,partition}),
+        getContext:()=>context,
         getRuntime:async()=>({covered:false}),get:async()=>structuredClone(state),
         save:async candidate=>{saves++;return {...structuredClone(candidate),revision:candidate.revision+1}},
-        close:async()=>{},onState:()=>()=>{},onBoss:()=>()=>{},onError:()=>()=>{}
+        close:async()=>{},onState:handler=>{stateSubscribers.push(handler);return()=>{}},onBoss:()=>()=>{},onError:()=>()=>{}
       }
       window.videoChatModeControl=api
       globalThis.__moyuChatPlayerProps=[]
       const compiledPath=await compileChatView(projectRoot,file);compiled.push(compiledPath)
       const View=(await import(`${pathToFileURL(compiledPath).href}?test=${Date.now()}`)).default
       const wrapper=mount(View,{attachTo:document.body})
+      await new Promise(resolve=>setTimeout(resolve,0));await nextTick()
+      assert.equal(stateSubscribers.length,0,`${skin} must not subscribe before trusted context`)
+      stateSubscribers.forEach(handler=>handler(structuredClone(early)))
+      resolveContext({platform:'bilibili',skin,partition})
       for(let attempt=0;attempt<20&&!wrapper.attributes('data-chat-ready');attempt++){await new Promise(resolve=>setTimeout(resolve,0));await nextTick()}
       assert.equal(wrapper.attributes('data-chat-ready'),'true',`${skin} should load`)
+      assert.equal(stateSubscribers.length,1,`${skin} subscribes exactly once after context`)
       assert.deepEqual(globalThis.__moyuChatPlayerProps.at(-1),{platform:'bilibili',label:'B站',partition,message:state.conversations.find(c=>c.id===state.selectedId).messages.at(-1)})
       if(!wrapper.find('[data-action="settings"]').exists()){await wrapper.find('[data-action="more"]').trigger('click');await nextTick()}
       const settings=wrapper.find('[data-action="settings"]');assert.equal(settings.exists(),true,`${skin} settings trigger`);await settings.trigger('click');await nextTick()
@@ -163,6 +172,23 @@ test('B站 context loads through all three approved skins and rejects a cross-si
       assert.equal(saves,0,`${skin} must reject cross-site address before save`)
       assert.match(wrapper.text(),/仅支持无凭据的B站官方/)
       wrapper.unmount()
+
+      let failedSubscriptions=0
+      const failedApi={...api,getContext:async()=>{throw new Error('上下文读取失败')},onState:()=>{failedSubscriptions++;return()=>{}}}
+      window.videoChatModeControl=failedApi
+      const failed=mount(View,{attachTo:document.body})
+      for(let attempt=0;attempt<20&&!failed.text().includes('上下文读取失败');attempt++){await new Promise(resolve=>setTimeout(resolve,0));await nextTick()}
+      assert.match(failed.text(),/上下文读取失败/)
+      assert.equal(failedSubscriptions,0,`${skin} rejected context must not subscribe`)
+      failed.unmount()
+
+      let lateSubscriptions=0,resolveLate
+      window.videoChatModeControl={...api,getContext:()=>new Promise(resolve=>{resolveLate=resolve}),onState:()=>{lateSubscriptions++;return()=>{}}}
+      const abandoned=mount(View,{attachTo:document.body})
+      await new Promise(resolve=>setTimeout(resolve,0));abandoned.unmount()
+      resolveLate({platform:'bilibili',skin,partition})
+      await new Promise(resolve=>setTimeout(resolve,0));await nextTick()
+      assert.equal(lateSubscriptions,0,`${skin} unmounted startup must not subscribe late`)
     }
   }finally{
     delete globalThis.__moyuChatPlayerProps

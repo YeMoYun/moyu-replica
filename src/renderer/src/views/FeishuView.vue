@@ -1,5 +1,5 @@
 <template>
-  <section v-if="state" class="feishu formal-feishu" :class="{'show-list':showList}" :data-chat-ready="true">
+  <section v-if="state && platform" class="feishu formal-feishu" :class="{'show-list':showList}" :data-chat-ready="true">
     <div class="fs-window-tools" aria-label="窗口工具">
       <button title="历史窗口" @click="notice('历史窗口')">◴</button><button title="最小化" @click="notice('最小化')">−</button><button title="还原" @click="notice('还原窗口')">▢</button><button title="关闭" @click="close"><FeishuIcon name="close"/></button>
     </div>
@@ -68,9 +68,10 @@ import '../features/chat/feishu.css'
 const api=window.videoChatModeControl,state=ref(null),platform=ref(null),covered=ref(false),search=ref(''),draft=ref(''),error=ref(''),dialog=ref(''),showList=ref(false),activeTab=ref('消息'),addressInput=ref(''),editConfig=ref(null),editId=ref(''),jsonInput=ref(''),configError=ref('')
 const navigation=['消息','豆包工作','云文档','推荐','多维表格','视频会议','通讯录','日历','飞行社','权益升级','更多','历史记录','实验室'],navIcons=['chat','work','doc','more','work','users','users','calendar','work','plus','more','calendar','work']
 const tabs=['消息','云文档','群公告','文件','每日质检任务','质检问题收集表','＋'],tabIcons=['chat','doc','more','doc','calendar','work','plus']
-const avatars=['blue','green','purple','orange','bot','self'],botIds=new Set(['file','assistant','bot']),unsubs=[];let disposed=false,bossRevision=0
+const avatars=['blue','green','purple','orange','bot','self'],botIds=new Set(['file','assistant','bot']),unsubs=[];let disposed=false,bossRevision=0,subscribed=false
 const platformLabel=computed(()=>platform.value?.definition.label||'视频')
-const controller=createChatController({api,validate:raw=>validateChatState(raw,'feishu',platform.value?.platform||raw?.settings?.site||'douyin'),onState:value=>state.value=value,onError:value=>error.value=value.message})
+function trustedPlatform(){const key=platform.value?.platform;if(!key)throw Error('视频平台上下文尚未就绪');return key}
+const controller=createChatController({api,validate:raw=>validateChatState(raw,'feishu',trustedPlatform()),onState:value=>state.value=value,onError:value=>error.value=value.message})
 const chat=computed(()=>state.value?currentChat(state.value):null),filtered=computed(()=>state.value?.conversations.filter(c=>c.name.toLowerCase().includes(search.value.trim().toLowerCase()))||[]),quick=computed(()=>state.value?.conversations.slice(0,3)||[]),hiddenAnnouncement=computed(()=>state.value?.ui.hiddenAnnouncements.includes(state.value.selectedId)),editChat=computed(()=>editConfig.value?.conversations.find(c=>c.id===editId.value))
 const update=mutation=>controller.update(mutation).catch(()=>null)
 const avatarText=c=>c.memberCount?'质检\n组':c.name[0]
@@ -95,8 +96,9 @@ async function replace(raw){try{const candidate=validateChatState(raw,'feishu',p
 function applyJson(){try{return replace(JSON.parse(jsonInput.value))}catch(value){configError.value='JSON 格式错误：'+value.message}}
 function reset(){return replace(createChatState('feishu',platform.value.platform))}
 async function close(){try{await api.close()}catch(value){error.value=value.message}}
-async function load(){error.value='';try{platform.value=await loadChatPlatform(api,'feishu');const revision=bossRevision;await loadChatRuntime(controller,api,runtime=>{if(!disposed&&revision===bossRevision)covered.value=runtime.covered;if(runtime.warning)error.value=runtime.warning});draft.value=state.value.drafts[state.value.selectedId]||''}catch(value){error.value=value.message}}
+function subscribeOnce(){if(subscribed||disposed)return;unsubs.push(api.onState(value=>controller.accept(value)),api.onBoss(value=>{bossRevision++;covered.value=value}),api.onError(message=>error.value=message));subscribed=true}
+async function load(){error.value='';try{const context=await loadChatPlatform(api,'feishu');if(disposed)return;platform.value=context;subscribeOnce();const revision=bossRevision;await loadChatRuntime(controller,api,runtime=>{if(!disposed&&revision===bossRevision)covered.value=runtime.covered;if(runtime.warning)error.value=runtime.warning});if(disposed)return;draft.value=state.value.drafts[state.value.selectedId]||''}catch(value){if(!disposed)error.value=value.message}}
 watch(()=>state.value?.selectedId,id=>{if(id)draft.value=state.value.drafts[id]||''})
-onMounted(()=>{unsubs.push(api.onState(value=>controller.accept(value)),api.onBoss(value=>{bossRevision++;covered.value=value}),api.onError(message=>error.value=message));load()})
+onMounted(()=>{load()})
 onBeforeUnmount(()=>{disposed=true;controller.dispose();unsubs.forEach(unsubscribe=>unsubscribe())})
 </script>

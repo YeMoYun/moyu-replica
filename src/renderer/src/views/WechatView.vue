@@ -1,5 +1,5 @@
 <template>
-  <section v-if="state" class="wechat formal-wechat" :class="{'show-list':showList}" :data-chat-ready="true" @click="outside">
+  <section v-if="state && platform" class="wechat formal-wechat" :class="{'show-list':showList}" :data-chat-ready="true" @click="outside">
     <aside class="navigation">
       <img class="avatar account-avatar" :src="avatars.self" alt="自己的本地头像" />
       <button v-for="(tool,i) in navs" :key="tool.icon" class="nav-button" :class="{active:i===0}" :title="tool.label" :aria-label="tool.label" @click="i===0?showList=!showList:notice(tool.label)"><ChatIcon :name="tool.icon" /></button>
@@ -74,8 +74,9 @@ const navs=[{icon:'wx-chat',label:'消息'},{icon:'wx-contacts',label:'通讯录
 const inputTools=computed(()=>[{icon:'smile',label:'表情'},{icon:'cube',label:'收藏'},{icon:'folder',label:`插入${platformLabel.value}播放器`},{icon:'cut',label:'截屏'}])
 const state=ref(null),platform=ref(null),covered=ref(false),search=ref(''),draft=ref(''),error=ref(''),more=ref(false),dialog=ref(''),showList=ref(false),messageInput=ref(null),addressInput=ref(''),editConfig=ref(null),editId=ref(''),jsonInput=ref(''),configError=ref('')
 const platformLabel=computed(()=>platform.value?.definition.label||'视频')
-const api=window.videoChatModeControl,unsubscribes=[];let bossRevision=0,disposed=false
-const controller=createChatController({api,validate:raw=>validateChatState(raw,'wechat',platform.value?.platform||raw?.settings?.site||'douyin'),onState:s=>{state.value=s},onError:e=>{error.value=e.message}})
+const api=window.videoChatModeControl,unsubscribes=[];let bossRevision=0,disposed=false,subscribed=false
+function trustedPlatform(){const key=platform.value?.platform;if(!key)throw Error('视频平台上下文尚未就绪');return key}
+const controller=createChatController({api,validate:raw=>validateChatState(raw,'wechat',trustedPlatform()),onState:s=>{state.value=s},onError:e=>{error.value=e.message}})
 const chat=computed(()=>state.value?currentChat(state.value):null),filtered=computed(()=>state.value?.conversations.filter(c=>c.name.toLowerCase().includes(search.value.trim().toLowerCase()))||[])
 const editChat=computed(()=>editConfig.value?.conversations.find(c=>c.id===editId.value))
 function summary(c){const m=c.messages.at(-1);return !m?'':m.type==='player'?`[${platformLabel.value}视频]`:m.text}
@@ -103,8 +104,9 @@ function exportJson(){jsonInput.value=JSON.stringify(state.value,null,2)}
 function reset(){return replace(createChatState('wechat',platform.value.platform))}
 async function close(){try{await api.close()}catch(e){error.value=e.message}}
 function escape(event){if(event.key==='Escape'){if(dialog.value)dialog.value='';else{more.value=false;showList.value=false}}}
-async function load(){error.value='';try{platform.value=await loadChatPlatform(api,'wechat');const revision=bossRevision;await loadChatRuntime(controller,api,runtime=>{if(disposed)return;if(revision===bossRevision)covered.value=runtime.covered;if(runtime.warning)error.value=runtime.warning});if(disposed)return;draft.value=state.value.drafts[state.value.selectedId]||'';scroll(state.value.selectedId)}catch(e){error.value=e.message}}
+function subscribeOnce(){if(subscribed||disposed)return;unsubscribes.push(api.onState(s=>controller.accept(s)),api.onBoss(value=>{bossRevision++;covered.value=value}),api.onError(message=>{error.value=message}));subscribed=true}
+async function load(){error.value='';try{const context=await loadChatPlatform(api,'wechat');if(disposed)return;platform.value=context;subscribeOnce();const revision=bossRevision;await loadChatRuntime(controller,api,runtime=>{if(disposed)return;if(revision===bossRevision)covered.value=runtime.covered;if(runtime.warning)error.value=runtime.warning});if(disposed)return;draft.value=state.value.drafts[state.value.selectedId]||'';scroll(state.value.selectedId)}catch(e){if(!disposed)error.value=e.message}}
 watch(()=>state.value?.selectedId,id=>{if(id){draft.value=state.value.drafts[id]||'';scroll(id)}})
-onMounted(()=>{unsubscribes.push(api.onState(s=>controller.accept(s)),api.onBoss(value=>{bossRevision++;covered.value=value}),api.onError(message=>{error.value=message}));document.addEventListener('keydown',escape);load()})
+onMounted(()=>{document.addEventListener('keydown',escape);load()})
 onBeforeUnmount(()=>{disposed=true;controller.dispose();for(const unsubscribe of unsubscribes)unsubscribe();document.removeEventListener('keydown',escape)})
 </script>
