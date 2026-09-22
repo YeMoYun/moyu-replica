@@ -19,6 +19,6 @@ test('approved layout mounts stable per-conversation guests and no remote preloa
   const p=new URL('../src/renderer/src/views/WechatView.vue',import.meta.url);assert.ok(existsSync(p),'正式微信视图尚未实现')
   const view=read('src/renderer/src/views/WechatView.vue'),player=read('src/renderer/src/features/chat/ChatPlayer.vue')
   assert.match(view,/v-show="c.id === state.selectedId"/);assert.match(view,/:key="m.id"/)
-  assert.match(view,/isComposing/);assert.match(view,/更多/);assert.match(player,/persist:moyu-chat-wechat/)
+  assert.match(view,/isComposing/);assert.match(view,/更多/);assert.doesNotMatch(player,/persist:moyu-chat-wechat/)
   assert.doesNotMatch(player,/\bpreload=|\bnodeintegration\b/)
 })

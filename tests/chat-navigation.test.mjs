@@ -49,6 +49,29 @@ test('redirect from superseded epoch or unrelated frame cannot commit old target
   assert.throws(()=>c.redirect({...frame,url:'https://evil.invalid/'}),/抖音/)
 })
 
+test('configured platform validates the initial address and every requested transition',async()=>{
+  const {createChatNavigation}=await import('../src/renderer/src/features/chat/navigation.mjs')
+  const home='https://www.bilibili.com/',video='https://www.bilibili.com/video/BV1',next='https://www.bilibili.com/video/BV2'
+  let url=home;const loads=[],commits=[]
+  const navigation=createChatNavigation({platform:'bilibili',initialAddress:home,readUrl:()=>url,load:value=>loads.push(value),commit:value=>commits.push(value),report:()=>{}})
+  assert.equal(navigation.navigate(video),true)
+  assert.deepEqual(commits,[video])
+  navigation.domReady();navigation.addressChanged(next)
+  assert.deepEqual(loads,[next])
+  assert.throws(()=>navigation.navigate('https://www.huya.com/1'),/B站/)
+  assert.throws(()=>navigation.addressChanged('https://www.huya.com/1'),/B站/)
+  assert.deepEqual(loads,[next])
+  assert.deepEqual(commits,[video])
+  assert.throws(()=>createChatNavigation({platform:'bilibili',initialAddress:'https://www.huya.com/1',readUrl:()=>'',load:()=>{},commit:()=>{},report:()=>{}}),/B站/)
+})
+
+test('navigation defaults to Douyin for legacy callers',async()=>{
+  const {createChatNavigation}=await import('../src/renderer/src/features/chat/navigation.mjs')
+  const navigation=createChatNavigation({initialAddress:home,readUrl:()=>home,load:()=>{},commit:()=>{},report:()=>{}})
+  assert.equal(navigation.navigate(a),true)
+  assert.throws(()=>navigation.addressChanged('https://www.bilibili.com/video/BV1'),/抖音/)
+})
+
 test('player stops and retries rejected same-site main-frame navigation',()=>{
   const source=readFileSync(new URL('../src/renderer/src/features/chat/ChatPlayer.vue',import.meta.url),'utf8')
   assert.match(source,/event\.isMainFrame===false[^}]*return[\s\S]*!navigation\.started\(event\)[\s\S]*guest\.value\.stop\(\)[\s\S]*navigation\.retry\(\)/)
