@@ -39,6 +39,17 @@ test('wechat dingtalk and feishu share cover but persist independent bounds',asy
   const c=createChatWindowController({store,screen}),wx=make(10),ding=make(60),fei=make(110);c.attach('wechat',wx);c.attach('dingtalk',ding);c.attach('feishu',fei);c.toggleBoss()
   for(const w of [wx,ding,fei])assert.deepEqual(w.sent.at(-1),['chat-mode:boss',true]);fei.emit('move');assert.equal(values.get('chatWindows.feishu').bounds.x,110);assert.equal(values.has('chatWindows.wechat'),false)
 })
+test('composite chat windows persist bounds independently while legacy storage stays unchanged',async()=>{
+  const {createChatWindowController}=await moduleAt('../src/main/chat-window-controls.mjs')
+  const values=new Map(),store={get:key=>values.get(key),set:(key,value)=>values.set(key,value)},screen={getAllDisplays:()=>[{workArea:{x:0,y:0,width:1600,height:900}}]}
+  const make=x=>{const w=new EventEmitter();w.isDestroyed=()=>false;w.getBounds=()=>({x,y:10,width:980,height:760});w.setBounds=()=>{};w.show=()=>{};w.close=()=>{};w.setOpacity=()=>{};w.webContents={isDestroyed:()=>false,send:()=>{}};return w}
+  const controller=createChatWindowController({store,screen}),legacy=make(5),bilibili=make(10),huya=make(70)
+  controller.attach('wechat',legacy);controller.attach('chat-bilibili-wechat',bilibili);controller.attach('chat-huya-wechat',huya)
+  legacy.emit('move');bilibili.emit('move');huya.emit('move')
+  assert.equal(values.get('chatWindows.wechat').bounds.x,5)
+  assert.equal(values.get('chatWindows.chat-bilibili-wechat').bounds.x,10)
+  assert.equal(values.get('chatWindows.chat-huya-wechat').bounds.x,70)
+})
 test('client accepts a platform-specific validator',async()=>{
   const {createChatController}=await moduleAt('../src/renderer/src/features/chat/controller.mjs');const {validateChatState}=await import('../src/shared/chat-state.mjs');let saved=createChatState('dingtalk'),published
   const api={get:async()=>structuredClone(saved),save:async(n,r)=>saved={...n,revision:r+1}}
