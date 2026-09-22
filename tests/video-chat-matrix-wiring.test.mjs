@@ -35,6 +35,57 @@ test('preload exposes the generic chat bridge and retains all legacy bridges', (
   }
 })
 
+test('renderer runtime returns a frozen canonical platform context', async () => {
+  const {loadChatPlatform}=await import('../src/renderer/src/features/chat/platform-runtime.mjs')
+  let calls=0
+  const received={
+    platform:'huya',
+    skin:'wechat',
+    partition:'persist:moyu-chat-huya-wechat',
+    windowKey:'forged-window',
+    route:'/forged-route'
+  }
+  const value=await loadChatPlatform({getContext:async()=>{calls++;return received}},'wechat')
+
+  assert.equal(calls,1)
+  assert.equal(value.platform,'huya')
+  assert.equal(value.skin,'wechat')
+  assert.equal(value.partition,'persist:moyu-chat-huya-wechat')
+  assert.equal(value.windowKey,'chat-huya-wechat')
+  assert.equal(value.route,'/wechat/huya')
+  assert.equal(value.definition.label,'虎牙')
+  assert.equal(Object.isFrozen(value),true)
+  assert.throws(()=>{value.platform='douyin'},TypeError)
+})
+
+test('renderer runtime strictly rejects mismatched skin and partition', async () => {
+  const {loadChatPlatform}=await import('../src/renderer/src/features/chat/platform-runtime.mjs')
+  await assert.rejects(
+    loadChatPlatform({getContext:async()=>({platform:'huya',skin:'feishu',partition:'persist:moyu-chat-huya-feishu'})},'wechat'),
+    /界面身份不匹配/
+  )
+  await assert.rejects(
+    loadChatPlatform({getContext:async()=>({platform:'huya',skin:'wechat',partition:'persist:moyu-chat-huya-feishu'})},'wechat'),
+    /会话分区无效/
+  )
+})
+
+test('renderer runtime rejects unknown and inherited platform identities', async () => {
+  const {loadChatPlatform}=await import('../src/renderer/src/features/chat/platform-runtime.mjs')
+  await assert.rejects(
+    loadChatPlatform({getContext:async()=>({platform:'__proto__',skin:'wechat',partition:'persist:moyu-chat-huya-wechat'})},'wechat'),
+    /视频平台/
+  )
+  const inherited=Object.create({platform:'huya',skin:'wechat',partition:'persist:moyu-chat-huya-wechat'})
+  await assert.rejects(loadChatPlatform({getContext:async()=>inherited},'wechat'),/视频平台/)
+})
+
+test('renderer runtime propagates getContext rejection unchanged', async () => {
+  const {loadChatPlatform}=await import('../src/renderer/src/features/chat/platform-runtime.mjs')
+  const failure=new Error('bridge unavailable')
+  await assert.rejects(loadChatPlatform({getContext:async()=>{throw failure}},'wechat'),error=>error===failure)
+})
+
 test('shared player requires and uses immutable platform context', async () => {
   const projectRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..')
   const componentPath=resolve(projectRoot,'src/renderer/src/features/chat/ChatPlayer.vue')
