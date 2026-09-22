@@ -70,6 +70,7 @@ test('openVideoChat does not save or open when a URL belongs to another platform
 
 test('generic handlers derive platform and skin only from the sender window identity', async () => {
   const { createVideoChatRuntime } = await runtimeModule()
+  const { createSenderWindowKeyResolver } = await import('../src/main/sender-window-key.mjs')
   const seen = []
   const service = {
     get: () => ({ marker: 'bilibili-wechat' }),
@@ -84,8 +85,15 @@ test('generic handlers derive platform and skin only from the sender window iden
     },
     openRoute: () => { throw new Error('not used') }
   })
-  const handlers = runtime.createIpcHandlers(event => event.senderKey)
-  const event = { senderKey: 'chat-bilibili-wechat' }
+  const bilibiliWindow = { id: 'bilibili-window' }
+  const windows = new Map([['chat-bilibili-wechat', bilibiliWindow]])
+  const senderContents = { id: 'sender-contents' }
+  const keyFromSender = createSenderWindowKeyResolver({
+    windows,
+    fromWebContents: sender => sender === senderContents ? bilibiliWindow : null
+  })
+  const handlers = runtime.createIpcHandlers(keyFromSender)
+  const event = { sender: senderContents }
 
   assert.equal(handlers.getContext(event, 'huya', 'feishu').id, 'bilibili:wechat')
   assert.deepEqual(handlers.get(event, 'huya', 'feishu'), { marker: 'bilibili-wechat' })
@@ -100,33 +108,41 @@ test('generic handlers derive platform and skin only from the sender window iden
   })
   assert.equal(handlers.close(event), 'closed:chat-bilibili-wechat')
   assert.deepEqual(seen, ['bilibili:wechat', 'bilibili:wechat', 'bilibili:wechat'])
-  assert.throws(() => handlers.get({ senderKey: 'main' }), /未知聊天窗口/)
+  assert.throws(() => handlers.get({ sender: { id: 'unknown-contents' } }), /未知窗口/)
 })
 
 test('registry notifications stay in the target window and legacy events are Douyin-only', async () => {
   const { createVideoChatNotifier } = await runtimeModule()
-  const sent = []
-  const window = {
+  const huyaSent = []
+  const douyinSent = []
+  const huyaWindow = {
     isDestroyed: () => false,
-    webContents: { isDestroyed: () => false, send: (...args) => sent.push(args) }
+    webContents: { isDestroyed: () => false, send: (...args) => huyaSent.push(args) }
+  }
+  const douyinWindow = {
+    isDestroyed: () => false,
+    webContents: { isDestroyed: () => false, send: (...args) => douyinSent.push(args) }
   }
   const windows = new Map([
-    ['wechat', window],
-    ['chat-huya-wechat', window]
+    ['wechat', douyinWindow],
+    ['chat-huya-wechat', huyaWindow]
   ])
   const notify = createVideoChatNotifier(windows)
 
   notify({ platform: 'huya', skin: 'wechat', windowKey: 'chat-huya-wechat' }, { revision: 1 })
-  assert.deepEqual(sent, [['video-chat:updated', { revision: 1 }]])
+  assert.deepEqual(huyaSent, [['video-chat:updated', { revision: 1 }]])
+  assert.deepEqual(douyinSent, [])
 
-  sent.length = 0
+  huyaSent.length = 0
   notify({ platform: 'douyin', skin: 'wechat', windowKey: 'wechat' }, { revision: 2 })
-  assert.deepEqual(sent, [
+  assert.deepEqual(douyinSent, [
     ['video-chat:updated', { revision: 2 }],
     ['chat-mode:updated', { revision: 2 }]
   ])
+  assert.deepEqual(huyaSent, [])
 
-  sent.length = 0
+  douyinSent.length = 0
   notify({ platform: 'douyin', skin: 'dingtalk', windowKey: 'missing' }, { revision: 3 })
-  assert.deepEqual(sent, [])
+  assert.deepEqual(huyaSent, [])
+  assert.deepEqual(douyinSent, [])
 })

@@ -24,6 +24,7 @@ import { createAdWindowController } from './ad-window-controls.mjs'
 import { createChatWindowController } from './chat-window-controls.mjs'
 import { createChatServiceRegistry } from './chat-service-registry.mjs'
 import { createVideoChatNotifier, createVideoChatRuntime, tryChatContext } from './video-chat-runtime.mjs'
+import { createSenderWindowKeyResolver } from './sender-window-key.mjs'
 import { createRegisteredAdOpener, createVideoModeLauncher } from './video-mode-launcher.mjs'
 import { createVideoModeIpcHandlers } from './video-mode-ipc.mjs'
 import { createScopedAdCloser, transferToTransparentGuest } from './ad-transparent-transfer.mjs'
@@ -44,6 +45,10 @@ const preload = join(__dirname, '../preload/index.js')
 const rendererIndex = join(__dirname, '../renderer/index.html')
 
 const windows = new Map()
+const keyFromSender = createSenderWindowKeyResolver({
+  windows,
+  fromWebContents: sender => BrowserWindow.fromWebContents(sender)
+})
 let mainWindow = null
 
 // electron-store 等价物：单实例，点号路径键，全部读写同一 config.json。
@@ -255,12 +260,6 @@ function initializeShortcuts() {
     console.error(message)
     mainWindow.webContents.once('did-finish-load', () => mainWindow.webContents.send('window-control:error', `快捷键无法启用，请在快捷键设置中检查：${message}`))
   }
-}
-
-function keyFromSender(event) {
-  const window = BrowserWindow.fromWebContents(event.sender)
-  for (const [key, value] of windows) if (value === window) return key
-  throw new Error('未知窗口，不能执行窗口操作')
 }
 
 // ── TXT / MOBI / PDF ─────────────────────────────────────────────────────

@@ -23,3 +23,10 @@ test('main wires generic sender-scoped handlers, lazy registry, and all-platform
   assert.doesNotMatch(main, /let\s+(chatService|dingtalkService|feishuService)\s*=/)
 })
 
+test('preload exposes the generic chat bridge and retains all legacy bridges', () => {
+  const preload = read('src/preload/index.js')
+  assert.match(preload, /exposeInMainWorld\('videoChatModeControl'/)
+  for (const bridge of ['chatModeControl', 'dingtalkModeControl', 'feishuModeControl']) {
+    assert.match(preload, new RegExp(`exposeInMainWorld\\('${bridge}'`))
+  }
+})

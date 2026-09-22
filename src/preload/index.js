@@ -1,9 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { createEventSubscriptions } from './events.mjs'
+import { createVideoChatModeControl } from './video-chat-mode-control.mjs'
 
 // 复刻 MoYuMaster 的 preload 桥。保持与原版同名 API，让渲染层调用一致。
 const subscriptions = createEventSubscriptions(ipcRenderer)
 const on = (channel) => (cb) => subscriptions.on(channel, cb)
+
+contextBridge.exposeInMainWorld('videoChatModeControl', createVideoChatModeControl({
+  invoke: (...args) => ipcRenderer.invoke(...args),
+  on
+}))
 
 contextBridge.exposeInMainWorld('videoModeControl', {
   open: (platform, mode) => ipcRenderer.invoke('video-mode:open', platform, mode),
