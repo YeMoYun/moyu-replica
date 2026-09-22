@@ -79,7 +79,9 @@ test('only douyin wechat and dingtalk consume their matching legacy keys',()=>{
 
   assert.equal(registry.service(chatContext('douyin','wechat')).get().conversations[0].name,'旧微信')
   assert.equal(registry.service(chatContext('douyin','dingtalk')).get().conversations[0].name,'旧钉钉')
-  assert.notEqual(registry.service(chatContext('douyin','feishu')).get().conversations[0].name,'旧微信')
+  const feishuNames=registry.service(chatContext('douyin','feishu')).get().conversations.map(chat=>chat.name)
+  assert.equal(feishuNames.includes('旧微信'),false)
+  assert.equal(feishuNames.includes('旧钉钉'),false)
   for(const platform of VIDEO_PLATFORM_ORDER.filter(platform=>platform!=='douyin')){
     for(const skin of CHAT_SKINS){
       const names=registry.service(chatContext(platform,skin)).get().conversations.map(chat=>chat.name)
