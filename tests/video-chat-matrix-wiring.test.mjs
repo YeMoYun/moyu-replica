@@ -42,8 +42,9 @@ test('shared player requires and uses immutable platform context', async () => {
   const compiledPath=resolve(cacheDirectory,`ChatPlayer-${process.pid}-${Date.now()}.mjs`)
   const window=new Window({url:'http://localhost/'})
   const previous={}
-  let wrapper
-  class ResizeObserver{observe(){} disconnect(){}}
+  const loads=[],errors=[],added=[],removed=[],activeListeners=new Map()
+  let wrapper,currentUrl='https://www.bilibili.com/video/BV1',disconnects=0
+  class ResizeObserver{observe(){} disconnect(){disconnects++}}
   for(const [name,value] of Object.entries({window,document:window.document,navigator:window.navigator,Node:window.Node,Element:window.Element,HTMLElement:window.HTMLElement,SVGElement:window.SVGElement,Event:window.Event,CustomEvent:window.CustomEvent,MutationObserver:window.MutationObserver,ResizeObserver,getComputedStyle:window.getComputedStyle.bind(window)})){
     previous[name]=Object.getOwnPropertyDescriptor(globalThis,name)
     Object.defineProperty(globalThis,name,{configurable:true,writable:true,value})
@@ -71,22 +72,32 @@ test('shared player requires and uses immutable platform context', async () => {
     const WebviewStub=defineComponent({inheritAttrs:false,setup(_,context){
       const element=ref(null)
       context.expose({
-        addEventListener:(...args)=>element.value.addEventListener(...args),
-        removeEventListener:(...args)=>element.value.removeEventListener(...args),
-        getURL:()=>element.value.getAttribute('src'),loadURL:async value=>element.value.setAttribute('src',value),
+        addEventListener:(name,handler)=>{added.push([name,handler]);activeListeners.set(name,handler)},
+        removeEventListener:(name,handler)=>{removed.push([name,handler]);if(activeListeners.get(name)===handler)activeListeners.delete(name)},
+        getURL:()=>currentUrl,loadURL:async value=>{loads.push(value);currentUrl=value},
         reload:()=>{},stop:()=>{},setZoomFactor:()=>{},executeJavaScript:()=>Promise.resolve()
       })
       return()=>h('div',{...context.attrs,ref:element,'data-webview':''})
     }})
-    wrapper=mount(Player,{attachTo:document.body,global:{components:{webview:WebviewStub}},props:{platform:'bilibili',label:'B站',partition:'persist:moyu-chat-bilibili-wechat',message:{address:'https://www.bilibili.com/video/BV1'},settings:{orientation:'landscape',scale:140,mask:false},covered:false,active:true}})
+    wrapper=mount(Player,{attachTo:document.body,global:{components:{webview:WebviewStub}},props:{platform:'bilibili',label:'B站',partition:'persist:moyu-chat-bilibili-wechat',message:{address:'https://www.bilibili.com/video/BV1'},settings:{orientation:'landscape',scale:140,mask:false},covered:false,active:true,onError:value=>errors.push(value)}})
     const webview=wrapper.element.querySelector('[data-webview]')
     assert.equal(webview.getAttribute('src'),'https://www.bilibili.com/video/BV1')
     assert.equal(webview.getAttribute('partition'),'persist:moyu-chat-bilibili-wechat')
     assert.match(wrapper.text(),/正在加载B站网页/)
-    webview.dispatchEvent(new window.Event('render-process-gone'));await nextTick()
-    assert.match(wrapper.text(),/B站网页进程已退出，请重试/)
+    activeListeners.get('dom-ready')();await nextTick()
+    await wrapper.setProps({message:{address:'https://www.bilibili.com/video/BV2'}});await nextTick()
+    assert.deepEqual(loads,['https://www.bilibili.com/video/BV2'])
     await wrapper.setProps({message:{address:'https://www.huya.com/1'}});await nextTick()
-    assert.match(wrapper.text(),/B站/)
+    assert.deepEqual(loads,['https://www.bilibili.com/video/BV2'])
+    assert.match(errors.at(-1),/B站/)
+    const stale=added.find(([name])=>name==='render-process-gone')[1]
+    const errorCount=errors.length
+    wrapper.unmount();wrapper=null
+    assert.equal(disconnects,1)
+    assert.deepEqual(removed,added)
+    assert.equal(activeListeners.size,0)
+    assert.doesNotThrow(()=>stale())
+    assert.equal(errors.length,errorCount)
   }finally{
     wrapper?.unmount()
     window.close()

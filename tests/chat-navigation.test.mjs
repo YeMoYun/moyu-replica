@@ -72,6 +72,38 @@ test('navigation defaults to Douyin for legacy callers',async()=>{
   assert.throws(()=>navigation.addressChanged('https://www.bilibili.com/video/BV1'),/抖音/)
 })
 
+test('invalid public navigation inputs leave loading and commits untouched',async()=>{
+  const {createChatNavigation}=await import('../src/renderer/src/features/chat/navigation.mjs')
+  const bilibili='https://www.bilibili.com/',foreign='https://www.huya.com/1'
+  const cases=[
+    ['addressChanged',navigation=>navigation.addressChanged(foreign)],
+    ['navigate',navigation=>navigation.navigate(foreign)],
+    ['started',navigation=>navigation.started({url:foreign,isMainFrame:true,frameProcessId:1,frameRoutingId:1})],
+    ['redirect',navigation=>navigation.redirect({url:foreign,isMainFrame:true,frameProcessId:1,frameRoutingId:1})],
+    ['domReady',navigation=>navigation.domReady()]
+  ]
+  for(const [name,invoke] of cases){
+    const loads=[],commits=[]
+    const navigation=createChatNavigation({platform:'bilibili',initialAddress:bilibili,readUrl:()=>name==='domReady'?foreign:bilibili,load:value=>loads.push(value),commit:value=>commits.push(value),report:()=>{}})
+    assert.throws(()=>invoke(navigation),/B站/,name)
+    assert.deepEqual({loads,commits},{loads:[],commits:[]},name)
+  }
+})
+
+test('failed dom-ready validation does not make later address changes load early',async()=>{
+  const {createChatNavigation}=await import('../src/renderer/src/features/chat/navigation.mjs')
+  const home='https://www.bilibili.com/',next='https://www.bilibili.com/video/BV2'
+  let url='https://www.huya.com/1';const loads=[],commits=[]
+  const navigation=createChatNavigation({platform:'bilibili',initialAddress:home,readUrl:()=>url,load:value=>loads.push(value),commit:value=>commits.push(value),report:()=>{}})
+  assert.throws(()=>navigation.domReady(),/B站/)
+  navigation.addressChanged(next)
+  assert.deepEqual({loads,commits},{loads:[],commits:[]})
+  url=home
+  assert.equal(navigation.domReady(),false)
+  assert.deepEqual(loads,[next])
+  assert.deepEqual(commits,[])
+})
+
 test('player stops and retries rejected same-site main-frame navigation',()=>{
   const source=readFileSync(new URL('../src/renderer/src/features/chat/ChatPlayer.vue',import.meta.url),'utf8')
   assert.match(source,/event\.isMainFrame===false[^}]*return[\s\S]*!navigation\.started\(event\)[\s\S]*guest\.value\.stop\(\)[\s\S]*navigation\.retry\(\)/)

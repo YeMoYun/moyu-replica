@@ -45,8 +45,8 @@ export function createChatNavigation({platform='douyin',initialAddress,readUrl,l
     },
     domReady(){
       if(disposed)return false
-      available=true
       const current=validateChatUrl(readUrl(),platform)
+      available=true
       if(pending&&current!==desired&&!redirects.has(current)){issue();return false}
       if(pending){desired=current;commit(current)}
       pending=false;issued=null;return true
