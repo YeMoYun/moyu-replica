@@ -15,6 +15,9 @@ const find = route => BrowserWindow.getAllWindows().find(window => window.webCon
 const routeWindowIds = route => BrowserWindow.getAllWindows()
   .filter(window => window.webContents.getURL().endsWith(route))
   .map(window => window.id)
+const allWindowIds = () => BrowserWindow.getAllWindows()
+  .map(window => window.id)
+  .sort((left, right) => left - right)
 const watchdog = setTimeout(() => {
   console.error('Video chat matrix watchdog')
   app.exit(1)
@@ -41,15 +44,15 @@ async function closeChat(window, route) {
 }
 
 app.whenReady().then(async () => {
-  const { chatContext } = await import(pathToFileURL(path.join(__dirname, '../src/shared/chat-context.mjs')).href)
-  const { videoPlatform } = await import(pathToFileURL(path.join(__dirname, '../src/shared/video-platforms.mjs')).href)
-  const platforms = ['bilibili', 'huya', 'douyu', 'kuaishou']
-  const skins = ['wechat', 'dingtalk', 'feishu']
-  const contexts = platforms.flatMap(platform => skins.map(skin => chatContext(platform, skin)))
-  const sessions = new Map(contexts.map(context => [context.id, session.fromPartition(context.partition)]))
-  const blocked = { http: [], https: [] }
-
+  let sessions = new Map()
   try {
+    const { chatContext } = await import(pathToFileURL(path.join(__dirname, '../src/shared/chat-context.mjs')).href)
+    const { videoPlatform } = await import(pathToFileURL(path.join(__dirname, '../src/shared/video-platforms.mjs')).href)
+    const platforms = ['bilibili', 'huya', 'douyu', 'kuaishou']
+    const skins = ['wechat', 'dingtalk', 'feishu']
+    const contexts = platforms.flatMap(platform => skins.map(skin => chatContext(platform, skin)))
+    sessions = new Map(contexts.map(context => [context.id, session.fromPartition(context.partition)]))
+    const blocked = { http: [], https: [] }
     const fixture = fs.readFileSync(path.join(__dirname, '../tests/fixtures/web/ad-modes/video.html'), 'utf8')
     for (const context of contexts) {
       const isolatedSession = sessions.get(context.id)
@@ -106,8 +109,11 @@ app.whenReady().then(async () => {
 
       const routeIdsBeforeRepeat = routeWindowIds(context.route)
       assert.deepEqual(routeIdsBeforeRepeat, [window.id], `${context.id} must have one route window before repeat open`)
+      const beforeWindowIds = allWindowIds()
       const firstGuestId = guest.id
       await evaluate(home, `window.videoModeControl.open(${JSON.stringify(context.platform)},${JSON.stringify(context.skin)})`)
+      const afterWindowIds = allWindowIds()
+      assert.deepEqual(afterWindowIds, beforeWindowIds, `${context.id} repeat open must not create any BrowserWindow`)
       await until(() => routeWindowIds(context.route).length === 1, `${context.id} repeat open route`)
       assert.deepEqual(routeWindowIds(context.route), routeIdsBeforeRepeat)
       assert.equal(await evaluate(window, 'document.querySelector("webview").getWebContentsId()'), firstGuestId)
