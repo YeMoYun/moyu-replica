@@ -30,7 +30,7 @@ export function validateVideoPlatformUrl(platform,value) {
   let url
   try{url=new URL(value)}catch{throw new Error(`${definition.label}网页地址无效`)}
   const allowed=definition.hosts.some(host=>url.hostname===host||url.hostname.endsWith('.'+host))
-  if(!['https:','http:'].includes(url.protocol)||url.username||url.password||!allowed){
+  if(!['https:','http:'].includes(url.protocol)||url.username||url.password||url.port||!allowed){
     throw new Error(`仅支持无凭据的${definition.label}官方 HTTP(S) 页面`)
   }
   return url.href

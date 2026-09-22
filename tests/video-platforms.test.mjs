@@ -47,6 +47,8 @@ test('each platform resolves ad, existing opacity and three chat targets', () =>
 test('platform URL validation accepts only its own official HTTP(S) hosts', () => {
   assert.equal(validateVideoPlatformUrl('bilibili','https://www.bilibili.com/video/BV1'),'https://www.bilibili.com/video/BV1')
   assert.equal(validateVideoPlatformUrl('huya','http://www.huya.com/123'),'http://www.huya.com/123')
+  assert.equal(validateVideoPlatformUrl('huya','http://www.huya.com:80/123'),'http://www.huya.com/123')
+  assert.equal(validateVideoPlatformUrl('huya','https://www.huya.com:443/123'),'https://www.huya.com/123')
   assert.equal(validateVideoPlatformUrl('douyu','https://v.douyu.com/show/abc'),'https://v.douyu.com/show/abc')
   assert.equal(validateVideoPlatformUrl('kuaishou','https://www.kuaishou.com/short-video/abc'),'https://www.kuaishou.com/short-video/abc')
 
@@ -54,6 +56,8 @@ test('platform URL validation accepts only its own official HTTP(S) hosts', () =
     'javascript:alert(1)',
     'ftp://www.huya.com/123',
     'https://user:pass@www.huya.com/',
+    'http://www.huya.com:8080/',
+    'https://www.huya.com:8443/',
     'https://huya.com.evil.test/',
     'https://www.douyu.com/1',
     'https://huy\u0430.com/'

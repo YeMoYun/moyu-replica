@@ -69,12 +69,12 @@ export function validateChatState(raw,skin='wechat',platform='douyin'){
   return result
 }
 export function migrateLegacy(raw,skin='wechat',platform='douyin'){
-  object(raw);validatedChatProfile(skin);const state=createChatState(skin,platform);let warning=''
+  object(raw);const profile=validatedChatProfile(skin),state=createChatState(skin,platform),legacyAvatar=skin==='wechat'?'group':profile.avatars.find(value=>value!=='self');let warning=''
   if(raw.siteKey&&raw.siteKey!==platform)warning=`旧站点已保留备份，本窗口仅支持${videoPlatform(platform).label}。`
   if(raw.contacts!==undefined&&!Array.isArray(raw.contacts)||raw.messages!==undefined&&!Array.isArray(raw.messages))throw Error('旧配置不能无损迁移，原文件已保留')
   if(!(raw.contacts?.length||raw.messages?.length))return {state,warning}
   state.conversations=[];const byName=new Map()
-  const ensure=value=>{const name=text(value,'旧联系人');if(!byName.has(name)){const c={id:'legacy'+(state.conversations.length+1),name,contact:name,avatar:skin==='dingtalk'?'blue':'group',memberCount:0,unread:0,messages:[]};byName.set(name,c);state.conversations.push(c)}return byName.get(name)}
+  const ensure=value=>{const name=text(value,'旧联系人');if(!byName.has(name)){const c={id:'legacy'+(state.conversations.length+1),name,contact:name,avatar:legacyAvatar,memberCount:0,unread:0,messages:[]};byName.set(name,c);state.conversations.push(c)}return byName.get(name)}
   for(const name of raw.contacts||[])ensure(name)
   let n=1
   for(const line of raw.messages||[]){if(typeof line!=='string'||!line.includes('|'))throw Error('旧消息缺少归属分隔符，原配置已保留');const index=line.indexOf('|'),c=ensure(line.slice(0,index));c.messages.push({id:'m'+n++,type:'text',sender:'other',text:text(line.slice(index+1),'旧消息',2000),time:'10:00'})}

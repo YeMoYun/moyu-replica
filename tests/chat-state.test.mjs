@@ -65,9 +65,9 @@ test('legacy migration is scoped to its video platform and names that platform i
   assert.equal(M.migrateLegacy({...source,siteKey:'huya'},'wechat','huya').warning,'')
 })
 test('configuration rejects duplicates, pollution, unsupported site and bad messages atomically',()=>{
-  assert.equal(typeof M.validateChatState,'function');const s=M.createChatState(),before=structuredClone(s)
+  assert.equal(typeof M.validateChatState,'function');const s=M.createChatState()
   for(const mutate of [n=>n.conversations.push(n.conversations[0]),n=>n.settings.site='huya',n=>n.conversations[0].messages.push({id:'bad',type:'html',sender:'other',text:'x',time:'10:00'}),n=>n.drafts={unknown:'x'}]){
-    const n=structuredClone(s);mutate(n);assert.throws(()=>M.validateChatState(n));assert.deepEqual(s,before)
+    const n=structuredClone(s);mutate(n);const before=structuredClone(n);assert.throws(()=>M.validateChatState(n));assert.deepEqual(n,before)
   }
   assert.throws(()=>M.validateChatState(JSON.parse('{"__proto__":{},"version":1}')))
   assert.deepEqual(M.validateChatState(s),s)

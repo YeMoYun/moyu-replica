@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {createChatState,validateChatState,insertPlayer} from '../src/shared/chat-state.mjs'
+import {createChatState,validateChatState,insertPlayer,migrateLegacy} from '../src/shared/chat-state.mjs'
 
 test('feishu starts with approved ten conversations and a local card but no web player',()=>{
   const state=createChatState('feishu')
@@ -24,6 +24,14 @@ test('feishu seed and media card remain unchanged on every additional video plat
     assert.equal(state.settings.site,platform)
     assert.deepEqual(validateChatState(state,'feishu',platform),state)
   }
+})
+
+test('legacy feishu contacts migrate with a valid feishu avatar',()=>{
+  const {state}=migrateLegacy({contacts:['林晓'],messages:['林晓|旧消息']},'feishu','bilibili')
+  assert.equal(state.settings.site,'bilibili')
+  assert.equal(state.conversations[0].name,'林晓')
+  assert.equal(state.conversations[0].messages[0].text,'旧消息')
+  assert.deepEqual(validateChatState(state,'feishu','bilibili'),state)
 })
 
 test('feishu media cards are local, bounded and forbidden in other profiles',()=>{
