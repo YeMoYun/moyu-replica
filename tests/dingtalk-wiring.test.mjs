@@ -5,8 +5,8 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 test('formal dingtalk has an isolated route, bridge, service and guest partition',()=>{
   const path=new URL('../src/renderer/src/views/DingTalkView.vue',import.meta.url);assert.ok(existsSync(path),'正式钉钉视图尚未实现')
   const routes=read('src/renderer/src/router/index.js'),preload=read('src/preload/index.js'),main=read('src/main/index.js'),view=read('src/renderer/src/views/DingTalkView.vue')
-  assert.match(routes,/path: '\/dingding'.*DingTalkView.vue/);assert.match(preload,/exposeInMainWorld\('dingtalkModeControl'/);assert.match(main,/dingtalk-mode:get/);assert.match(main,/keyFromSender\(event\).*dingding/s)
-  assert.match(main,/createChatService\(\{store,.*key:'dingtalk'/s);assert.match(view,/persist:moyu-chat-dingtalk/);assert.doesNotMatch(view,/window\.chatModeControl/)
+  assert.match(routes,/path: '\/dingding\/:platform\?'.*DingTalkView.vue/);assert.match(preload,/exposeInMainWorld\('dingtalkModeControl'/);assert.match(main,/registerLegacyChatBridge\('dingtalk-mode','dingtalk'\)/)
+  assert.match(main,/createChatServiceRegistry/);assert.match(view,/persist:moyu-chat-dingtalk/);assert.doesNotMatch(view,/window\.chatModeControl/)
 })
 test('approved dingtalk structure keeps stable guests and composition-safe input',()=>{
   const path=new URL('../src/renderer/src/views/DingTalkView.vue',import.meta.url);assert.ok(existsSync(path),'正式钉钉视图尚未实现');const view=read('src/renderer/src/views/DingTalkView.vue')

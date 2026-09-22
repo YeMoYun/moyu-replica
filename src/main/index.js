@@ -22,19 +22,21 @@ import { createStore } from './store.js'
 import { createWindowController } from './window-controls.mjs'
 import { createAdWindowController } from './ad-window-controls.mjs'
 import { createChatWindowController } from './chat-window-controls.mjs'
-import { createChatService } from './chat-service.mjs'
+import { createChatServiceRegistry } from './chat-service-registry.mjs'
+import { createVideoChatNotifier, createVideoChatRuntime, tryChatContext } from './video-chat-runtime.mjs'
 import { createRegisteredAdOpener, createVideoModeLauncher } from './video-mode-launcher.mjs'
 import { createVideoModeIpcHandlers } from './video-mode-ipc.mjs'
 import { createScopedAdCloser, transferToTransparentGuest } from './ad-transparent-transfer.mjs'
 import { validateChatGuestAttachment } from './chat-guest-policy.mjs'
 import { validateChatUrl } from '../shared/chat-state.mjs'
+import { chatContext } from '../shared/chat-context.mjs'
 import { AD_MODES, normalizeAdSettings, normalizeAdPatch, validateAdUrl } from '../shared/ad-modes.mjs'
 import { createShortcutManager } from './shortcuts.mjs'
 import { normalizeShortcuts } from '../shared/shortcuts.mjs'
 import { validateUnmanagedSettings, validateUnmanagedSettingRead, sanitizeUnmanagedSettings } from './settings-guard.mjs'
 import { installGuestFrameNavigationGuard } from './guest-frame-navigation.mjs'
 import { installVideoGuestLinks } from './video-guest-links.mjs'
-import { SITES, SITE_ROUTES, CHAT_SKINS, SHORTCUTS, API_BASE, IP_API } from './sites.js'
+import { SITES, SITE_ROUTES, SHORTCUTS, API_BASE, IP_API } from './sites.js'
 import { getDeviceFingerprint, getMac, tokenSignature } from './auth.js'
 
 // ── 常量 ────────────────────────────────────────────────────────────────
@@ -43,8 +45,6 @@ const rendererIndex = join(__dirname, '../renderer/index.html')
 
 const windows = new Map()
 let mainWindow = null
-const CHAT_WINDOW_TO_PROFILE = Object.freeze({ wechat: 'wechat', dingding: 'dingtalk', feishu: 'feishu' })
-const CHAT_WINDOW_KEYS = new Set(Object.keys(CHAT_WINDOW_TO_PROFILE))
 
 // electron-store 等价物：单实例，点号路径键，全部读写同一 config.json。
 const store = createStore('config', {
@@ -58,9 +58,8 @@ const videoStore = store
 let windowControls = null
 let adWindowControls = null
 let chatWindowControls = null
-let chatService = null
-let dingtalkService = null
-let feishuService = null
+let chatServices = null
+let videoChatRuntime = null
 let videoModeLauncher = null
 let shortcutManager = null
 let shortcutStatus = { success: false, errors: [] }
@@ -75,6 +74,7 @@ function loadRoute(win, route) {
 }
 
 function makeWindow(key, opts) {
+  const chat = tryChatContext(key)
   const win = new BrowserWindow({
     show: false,
     autoHideMenuBar: true,
@@ -105,9 +105,9 @@ function makeWindow(key, opts) {
   if (Object.hasOwn(AD_MODES, key)) {
     win.webContents.on('did-attach-webview', (_event, guest) => installGuestFrameNavigationGuard(guest))
     adWindowControls.attach(key, win)
-  } else if (CHAT_WINDOW_KEYS.has(key)) chatWindowControls.attach(CHAT_WINDOW_TO_PROFILE[key], win)
+  } else if (chat) chatWindowControls.attach(key, win)
   else windowControls.attach(key, win, { transparent: !!opts.transparent })
-  if (CHAT_WINDOW_KEYS.has(key)) {
+  if (chat) {
     win.webContents.on('will-attach-webview', (event, preferences, params) => {
       try { validateChatGuestAttachment(key, params) } catch (error) {
         event.preventDefault()
@@ -123,13 +123,13 @@ function makeWindow(key, opts) {
     win.webContents.on('did-attach-webview', (_event, guest) => {
       installGuestFrameNavigationGuard(guest)
       const denied = message => { if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('chat-mode:error', message) }
-      guest.on('will-navigate', (event, address) => { try { validateChatUrl(address) } catch (error) { event.preventDefault(); denied(error.message) } })
+      guest.on('will-navigate', (event, address) => { try { validateChatUrl(address, chat.platform) } catch (error) { event.preventDefault(); denied(error.message) } })
       guest.on('will-redirect', (event, address, _inPlace, isMainFrame) => {
         if(isMainFrame===false)return
-        try { validateChatUrl(address) } catch(error){event.preventDefault();denied(error.message)}
+        try { validateChatUrl(address, chat.platform) } catch(error){event.preventDefault();denied(error.message)}
       })
       guest.setWindowOpenHandler(({url}) => {
-        try { const address=validateChatUrl(url);guest.loadURL(address).catch(error=>denied(error.message)) }
+        try { const address=validateChatUrl(url, chat.platform);guest.loadURL(address).catch(error=>denied(error.message)) }
         catch(error){denied(error.message)}
         return {action:'deny'}
       })
@@ -146,7 +146,7 @@ function focus(key) {
   if (w && !w.isDestroyed()) {
     if (w.isMinimized()) w.restore()
     if (Object.hasOwn(AD_MODES, key)) w.show()
-    else if (CHAT_WINDOW_KEYS.has(key)) chatWindowControls.restore(CHAT_WINDOW_TO_PROFILE[key])
+    else if (tryChatContext(key)) chatWindowControls.restore(key)
     else windowControls.restore(key)
     w.focus()
   }
@@ -188,6 +188,11 @@ function openSite(key) {
   })
 }
 
+function openVideoChat(platform, skin, address) {
+  if (!videoChatRuntime) throw new Error('聊天模式尚未初始化')
+  return videoChatRuntime.openVideoChat(platform, skin, address)
+}
+
 // ── 老板键 / 快捷键 ──────────────────────────────────────────────────────
 function broadcast(channel, ...args) {
   for (const w of windows.values()) {
@@ -220,8 +225,8 @@ function initializeShortcuts() {
   const changeOpacity = (delta) => {
     for (const key of windows.keys()) {
       if (key === 'main') continue
-      if (CHAT_WINDOW_KEYS.has(key)) {
-        chatWindowControls.setOpacity(CHAT_WINDOW_TO_PROFILE[key],windows.get(key).getOpacity()+delta)
+      if (tryChatContext(key)) {
+        chatWindowControls.setOpacity(key,windows.get(key).getOpacity()+delta)
         continue
       }
       if (Object.hasOwn(AD_MODES,key)) {
@@ -427,53 +432,39 @@ function registerIpc() {
   const videoModeIpc = createVideoModeIpcHandlers({ keyFromSender, launcher: videoModeLauncher })
   handle('video-mode:open', videoModeIpc.open)
   handle('video-mode:open-recent-chat', videoModeIpc.openRecentChat)
-  const requireWechat = event => { if (keyFromSender(event) !== 'wechat') throw Error('仅微信窗口可操作聊天配置') }
+  const videoChatIpc = videoChatRuntime.createIpcHandlers(keyFromSender)
+  handle('video-chat:get-context', videoChatIpc.getContext)
+  handle('video-chat:get', videoChatIpc.get)
+  handle('video-chat:save', videoChatIpc.save)
+  handle('video-chat:state', videoChatIpc.state)
+  handle('video-chat:close', videoChatIpc.close)
+
   const requireWechatLegacy = event => { if (!['wechat','wechatConfig'].includes(keyFromSender(event))) throw Error('仅微信窗口可操作旧聊天配置') }
-  handle('chat-mode:get', event => { requireWechat(event); return chatService.get() })
-  handle('chat-mode:save', (event,state,revision) => { requireWechat(event); return chatService.save(state,revision) })
-  handle('chat-mode:state', event => { requireWechat(event); return {...chatWindowControls.state('wechat'),warning:chatService.getWarning()} })
-  handle('chat-mode:close', event => { requireWechat(event); return chatWindowControls.close('wechat') })
-  handle('chat-mode:open', (event,address) => {
-    if(keyFromSender(event)!=='main')throw Error('仅主窗口可打开聊天模式')
-    if(address!==undefined){
-      const url=validateChatUrl(address),state=chatService.get();state.settings.address=url
-      const player=state.conversations.find(c=>c.id===state.selectedId)?.messages.find(m=>m.type==='player')
-      if(player)player.address=url
-      chatService.save(state,state.revision)
-    }
-    openSite('wechat');return true
-  })
-  const requireDingtalk = event => { if (keyFromSender(event) !== 'dingding') throw Error('仅钉钉窗口可操作聊天配置') }
   const requireDingtalkLegacy = event => { if (!['dingding','dingdingConfig'].includes(keyFromSender(event))) throw Error('仅钉钉窗口可操作旧聊天配置') }
-  handle('dingtalk-mode:get', event => { requireDingtalk(event); return dingtalkService.get() })
-  handle('dingtalk-mode:save', (event,state,revision) => { requireDingtalk(event); return dingtalkService.save(state,revision) })
-  handle('dingtalk-mode:state', event => { requireDingtalk(event); return {...chatWindowControls.state('dingtalk'),warning:dingtalkService.getWarning()} })
-  handle('dingtalk-mode:close', event => { requireDingtalk(event); return chatWindowControls.close('dingtalk') })
-  handle('dingtalk-mode:open', (event,address) => {
-    if(keyFromSender(event)!=='main')throw Error('仅主窗口可打开钉钉模式')
-    if(address!==undefined){
-      const url=validateChatUrl(address),state=dingtalkService.get();state.settings.address=url
-      const player=state.conversations.find(c=>c.id===state.selectedId)?.messages.find(m=>m.type==='player')
-      if(player)player.address=url
-      dingtalkService.save(state,state.revision)
+
+  const registerLegacyChatBridge = (prefix, skin) => {
+    const expected = chatContext('douyin', skin)
+    const requireLegacy = event => {
+      const actual = videoChatIpc.getContext(event)
+      if (actual.id !== expected.id) throw Error(`仅${skin}抖音窗口可操作此聊天配置`)
     }
-    openSite('dingding');return true
-  })
-  const requireFeishu = event => { if (keyFromSender(event) !== 'feishu') throw Error('仅飞书窗口可操作聊天配置') }
-  handle('feishu-mode:get', event => { requireFeishu(event); return feishuService.get() })
-  handle('feishu-mode:save', (event,state,revision) => { requireFeishu(event); return feishuService.save(state,revision) })
-  handle('feishu-mode:state', event => { requireFeishu(event); return {...chatWindowControls.state('feishu'),warning:feishuService.getWarning()} })
-  handle('feishu-mode:close', event => { requireFeishu(event); return chatWindowControls.close('feishu') })
-  handle('feishu-mode:open', (event,address) => {
-    if(keyFromSender(event)!=='main')throw Error('仅主窗口可打开飞书模式')
-    if(address!==undefined){
-      const url=validateChatUrl(address),state=feishuService.get();state.settings.address=url
-      const player=state.conversations.find(c=>c.id===state.selectedId)?.messages.find(m=>m.type==='player')
-      if(player)player.address=url
-      feishuService.save(state,state.revision)
-    }
-    openSite('feishu');return true
-  })
+    handle(`${prefix}:get`, event => { requireLegacy(event); return chatServices.service(expected).get() })
+    handle(`${prefix}:save`, (event,state,revision) => { requireLegacy(event); return chatServices.service(expected).save(state,revision) })
+    handle(`${prefix}:state`, event => {
+      requireLegacy(event)
+      const service = chatServices.service(expected)
+      return {...chatWindowControls.state(expected.windowKey),warning:service.getWarning()}
+    })
+    handle(`${prefix}:close`, event => { requireLegacy(event); return chatWindowControls.close(expected.windowKey) })
+    handle(`${prefix}:open`, async (event,address) => {
+      if(keyFromSender(event)!=='main')throw Error('仅主窗口可打开伪装模式')
+      await openVideoChat('douyin',skin,address)
+      return true
+    })
+  }
+  registerLegacyChatBridge('chat-mode','wechat')
+  registerLegacyChatBridge('dingtalk-mode','dingtalk')
+  registerLegacyChatBridge('feishu-mode','feishu')
   const adKind = event => {
     const key = keyFromSender(event)
     if (!Object.hasOwn(AD_MODES,key)) throw new Error('此接口仅供广告窗口使用')
@@ -870,28 +861,13 @@ app.whenReady().then(() => {
   windowControls = createWindowController({ windows, store, screen })
   adWindowControls = createAdWindowController({store,screen})
   chatWindowControls = createChatWindowController({store,screen})
-  chatService = createChatService({store,notify:state=>{
-    const win=windows.get('wechat')
-    if(win&&!win.isDestroyed()&&!win.webContents.isDestroyed())win.webContents.send('chat-mode:updated',state)
-  }})
-  dingtalkService = createChatService({store,key:'dingtalk',profile:'dingtalk',legacyKey:'dingdingConfig',legacySiteKey:'dingding.currentSiteKey',notify:state=>{
-    const win=windows.get('dingding')
-    if(win&&!win.isDestroyed()&&!win.webContents.isDestroyed())win.webContents.send('dingtalk-mode:updated',state)
-  }})
-  feishuService=createChatService({store,key:'feishu',profile:'feishu',legacyKey:null,recoverInvalidSaved:true,notify:state=>{
-    const win=windows.get('feishu')
-    if(win&&!win.isDestroyed()&&!win.webContents.isDestroyed())win.webContents.send('feishu-mode:updated',state)
-  }})
+  chatServices = createChatServiceRegistry({store,notify:createVideoChatNotifier(windows)})
+  videoChatRuntime = createVideoChatRuntime({chatServices,chatWindowControls,openRoute})
   const openRegisteredAd=createRegisteredAdOpener({registry:AD_MODES,openSite})
   videoModeLauncher=createVideoModeLauncher({
     openAd:openRegisteredAd,
     openOpacity:key=>openSite(key),
-    openChat:(platform,skin)=>{
-      if(platform!=='douyin')throw new Error('该平台伪装模式尚未接入')
-      const key={wechat:'wechat',dingtalk:'dingding',feishu:'feishu'}[skin]
-      if(!key)throw new Error('不支持的伪装界面')
-      return openSite(key)
-    },
+    openChat:(platform,skin)=>openVideoChat(platform,skin),
     readRecent:skin=>settings.get(`videoModes.lastPlatform.${skin}`),
     writeRecent:(skin,platform)=>settings.set(`videoModes.lastPlatform.${skin}`,platform)
   })

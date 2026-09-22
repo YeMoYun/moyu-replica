@@ -6,10 +6,10 @@ const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8')
 test('formal feishu has an isolated route bridge service and guest partition',()=>{
   const routes=read('src/renderer/src/router/index.js'),preload=read('src/preload/index.js')
   const main=read('src/main/index.js'),home=read('src/renderer/src/views/HomeView.vue')
-  assert.match(routes,/path: '\/feishu'.*FeishuView\.vue/)
+  assert.match(routes,/path: '\/feishu\/:platform\?'.*FeishuView\.vue/)
   assert.match(preload,/exposeInMainWorld\('feishuModeControl'/)
-  assert.match(main,/feishu-mode:get/)
-  assert.match(main,/createChatService\(\{store,key:'feishu',profile:'feishu'/s)
+  assert.match(main,/registerLegacyChatBridge\('feishu-mode','feishu'\)/)
+  assert.match(main,/createChatServiceRegistry/)
   assert.match(home,/飞书模式/)
 })
 
