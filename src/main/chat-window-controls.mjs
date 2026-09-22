@@ -2,17 +2,19 @@ import {fitBounds} from './window-controls.mjs'
 import {chatContextFromWindowKey} from '../shared/chat-context.mjs'
 export function createChatWindowController({store,screen}){
   const records=new Map();let covered=false
-  function record(key){const r=records.get(key);if(!r||r.win.isDestroyed())throw Error('聊天窗口不存在');return r}
+  function context(key){return chatContextFromWindowKey(key==='dingtalk'?'dingding':key)}
+  function record(key){let identity;try{identity=context(key)}catch{throw Error('聊天窗口不存在')}const r=records.get(identity.windowKey);if(!r||r.win.isDestroyed())throw Error('聊天窗口不存在');return r}
   function state(key){const r=record(key);return {key,covered,bounds:r.win.getBounds()}}
   function report(r,error){if(!r.win.isDestroyed()&&!r.win.webContents.isDestroyed())r.win.webContents.send('chat-mode:error',error.message)}
   function attach(key,win){
-    try{chatContextFromWindowKey(key==='dingtalk'?'dingding':key)}catch{throw Error('聊天窗口类型不支持')}
-    const r={win};records.set(key,r)
-    const saved=store.get(`chatWindows.${key}`)?.bounds||store.get(`windowState.${key}`)?.bounds
+    let identity;try{identity=context(key)}catch{throw Error('聊天窗口类型不支持')}
+    const canonicalKey=identity.windowKey,storageKey=identity.platform==='douyin'?identity.stateKey:canonicalKey
+    const r={win};records.set(canonicalKey,r)
+    const saved=store.get(`chatWindows.${storageKey}`)?.bounds||store.get(`windowState.${storageKey}`)?.bounds
     if(saved&&['x','y','width','height'].every(k=>Number.isFinite(saved[k])))win.setBounds(fitBounds(saved,screen.getAllDisplays()))
-    const persist=()=>{if(!win.isDestroyed())try{store.set(`chatWindows.${key}`,{bounds:win.getBounds()})}catch(error){report(r,error)}}
+    const persist=()=>{if(records.get(canonicalKey)===r&&!win.isDestroyed())try{store.set(`chatWindows.${storageKey}`,{bounds:win.getBounds()})}catch(error){report(r,error)}}
     win.on('move',persist);win.on('resize',persist);win.on('close',persist)
-    win.on('closed',()=>{if(records.get(key)===r)records.delete(key)})
+    win.on('closed',()=>{if(records.get(canonicalKey)===r)records.delete(canonicalKey)})
     return state(key)
   }
   function toggleBoss(){covered=!covered;for(const r of records.values())if(!r.win.isDestroyed()&&!r.win.webContents.isDestroyed())r.win.webContents.send('chat-mode:boss',covered);return covered}

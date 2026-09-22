@@ -10,7 +10,7 @@ test('chat boss covers visible windows and late windows without hiding or opacit
   const win=()=>{const w=new EventEmitter();let destroyed=false;w.sent=[];w.getBounds=()=>({x:20,y:20,width:980,height:760});w.isDestroyed=()=>destroyed;w.webContents={isDestroyed:()=>destroyed,send:(...a)=>w.sent.push(a)};w.show=()=>{};w.setBounds=()=>{};w.getOpacity=()=>1;w.setOpacity=()=>{throw Error('老板键不能改变不透明度')};w.hide=()=>{throw Error('老板键不能隐藏聊天窗口')};w.close=()=>{w.emit('close');destroyed=true;w.emit('closed')};return w}
   const c=createChatWindowController({store,screen}),a=win();c.attach('wechat',a)
   assert.equal(c.toggleBoss(),true);assert.equal(c.state('wechat').covered,true);assert.deepEqual(a.sent.at(-1),['chat-mode:boss',true])
-  a.close();assert.throws(()=>c.state('wechat'));const b=win();c.attach('wechat',b);assert.equal(c.state('wechat').covered,true)
+  a.close();assert.throws(()=>c.state('wechat'));assert.throws(()=>c.state('unknown'),/聊天窗口不存在/);const b=win();c.attach('wechat',b);assert.equal(c.state('wechat').covered,true)
   c.restore('wechat');assert.equal(c.state('wechat').covered,true);c.toggleBoss();assert.equal(c.state('wechat').covered,false)
 })
 test('client queues rapid updates against committed revisions and ignores old broadcasts',async()=>{
@@ -49,6 +49,22 @@ test('composite chat windows persist bounds independently while legacy storage s
   assert.equal(values.get('chatWindows.wechat').bounds.x,5)
   assert.equal(values.get('chatWindows.chat-bilibili-wechat').bounds.x,10)
   assert.equal(values.get('chatWindows.chat-huya-wechat').bounds.x,70)
+})
+test('legacy dingding identity restores and persists the existing dingtalk storage key',async()=>{
+  const {createChatWindowController}=await moduleAt('../src/main/chat-window-controls.mjs')
+  const saved={x:25,y:30,width:900,height:700},values=new Map([['chatWindows.dingtalk',{bounds:saved}]]),store={get:key=>values.get(key),set:(key,value)=>values.set(key,value)},screen={getAllDisplays:()=>[{workArea:{x:0,y:0,width:1600,height:900}}]}
+  const win=new EventEmitter();let restored;win.isDestroyed=()=>false;win.setBounds=value=>{restored=value};win.getBounds=()=>({x:55,y:30,width:900,height:700});win.show=()=>{};win.close=()=>{};win.setOpacity=()=>{};win.webContents={isDestroyed:()=>false,send:()=>{}}
+  const controller=createChatWindowController({store,screen});controller.attach('dingding',win)
+  assert.deepEqual(restored,saved);win.emit('move')
+  assert.equal(values.get('chatWindows.dingtalk').bounds.x,55);assert.equal(values.has('chatWindows.dingding'),false)
+})
+test('replaced canonical chat windows ignore stale lifecycle events',async()=>{
+  const {createChatWindowController}=await moduleAt('../src/main/chat-window-controls.mjs')
+  const values=new Map(),store={get:key=>values.get(key),set:(key,value)=>values.set(key,value)},screen={getAllDisplays:()=>[{workArea:{x:0,y:0,width:1600,height:900}}]}
+  const make=x=>{const win=new EventEmitter();win.isDestroyed=()=>false;win.setBounds=()=>{};win.getBounds=()=>({x,y:20,width:900,height:700});win.show=()=>{};win.close=()=>{};win.setOpacity=()=>{};win.webContents={isDestroyed:()=>false,send:()=>{}};return win}
+  const controller=createChatWindowController({store,screen}),oldWindow=make(10),newWindow=make(70)
+  controller.attach('dingtalk',oldWindow);controller.attach('dingding',newWindow);newWindow.emit('move');oldWindow.emit('move');oldWindow.emit('close');oldWindow.emit('closed')
+  assert.equal(values.get('chatWindows.dingtalk').bounds.x,70);assert.equal(controller.state('dingding').bounds.x,70)
 })
 test('client accepts a platform-specific validator',async()=>{
   const {createChatController}=await moduleAt('../src/renderer/src/features/chat/controller.mjs');const {validateChatState}=await import('../src/shared/chat-state.mjs');let saved=createChatState('dingtalk'),published
