@@ -26,7 +26,7 @@ function harness(site,settings={}){
   const page=controller.createVideoOpacityController({state,platform:get(site),getWebview:()=>guest,settings:{getSetting:async key=>settings[key],async setSettings(o){if(fail)throw Error('磁盘写入失败');Object.assign(settings,o)}}})
   return {state,page,settings,calls,get zoom(){return zoom},set fail(value){fail=value},set box(value){box=value}}
 }
-for(const site of ['bilibili','huya','kuaishou']){
+for(const site of ['bilibili','kuaishou']){
   test(`${site} manual zoom persists across navigation; restore fits resized viewport`,async()=>{
     const h=harness(site);await h.page.load();await h.page.domReady();assert.equal(h.zoom,.39)
     await h.page.setZoom(.75);assert.equal(h.settings[`${site}Opacity.zoom`],.75)
@@ -34,11 +34,23 @@ for(const site of ['bilibili','huya','kuaishou']){
     h.box={width:700,height:600};await h.page.resize();assert.equal(h.zoom,.75)
     await h.page.restoreAutoFit();assert.equal(h.zoom,.55);assert.equal(h.state.autoFit,true)
   })
+}
+for(const site of ['bilibili','huya','kuaishou']){
   test(`${site} save failure restores live appearance without touching preference`,async()=>{
     const h=harness(site);await h.page.load();await h.page.domReady();h.fail=true
     await assert.rejects(h.page.setZoom(.75),/磁盘/);assert.equal(h.zoom,.39);assert.equal(h.state.autoFit,true)
   })
 }
+test('huya resize restores automatic fit after a manual zoom selection',async()=>{
+  const h=harness('huya')
+  await h.page.load();await h.page.domReady();assert.equal(h.zoom,.39)
+  await h.page.setZoom(.75);assert.equal(h.state.autoFit,false)
+  h.box={width:700,height:600};await h.page.resize()
+  assert.equal(h.zoom,.55)
+  assert.equal(h.state.autoFit,true)
+  assert.equal(h.settings['huyaOpacity.zoom'],.55)
+  assert.equal(h.settings['huyaOpacity.autoFit'],true)
+})
 test('platform preferences never overwrite another platform or Douyin',async()=>{
   const settings={'douyinOpacity.zoom':.66,'windowState.weRead':{opacity:.3}}
   const b=harness('bilibili',settings),h=harness('huya',settings)

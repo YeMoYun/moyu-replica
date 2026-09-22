@@ -21,7 +21,7 @@
 - Modify: `tests/video-opacity.test.mjs`
 - Test: `tests/video-opacity.test.mjs`
 
-- [ ] **Step 1: Preserve the existing manual-resize behavior test for unaffected platforms**
+- [x] **Step 1: Preserve the existing manual-resize behavior test for unaffected platforms**
 
 Change the loop that asserts manual zoom survives resizing so it covers only Bilibili and Kuaishou:
 
@@ -37,7 +37,18 @@ for(const site of ['bilibili','kuaishou']){
 }
 ```
 
-- [ ] **Step 2: Add the Huya forced-auto-fit regression test**
+Keep the existing save-failure test in a separate loop over all three platforms so Huya retains rollback coverage:
+
+```js
+for(const site of ['bilibili','huya','kuaishou']){
+  test(`${site} save failure restores live appearance without touching preference`,async()=>{
+    const h=harness(site);await h.page.load();await h.page.domReady();h.fail=true
+    await assert.rejects(h.page.setZoom(.75),/磁盘/);assert.equal(h.zoom,.39);assert.equal(h.state.autoFit,true)
+  })
+}
+```
+
+- [x] **Step 2: Add the Huya forced-auto-fit regression test**
 
 Add this test immediately after the unaffected-platform loop:
 
@@ -54,7 +65,7 @@ test('huya resize restores automatic fit after a manual zoom selection',async()=
 })
 ```
 
-- [ ] **Step 3: Run the focused test and verify RED**
+- [x] **Step 3: Run the focused test and verify RED**
 
 Run:
 
@@ -70,7 +81,7 @@ Expected: the new Huya test fails because the actual zoom remains `0.75` instead
 - Modify: `src/renderer/src/features/video-opacity/controller.mjs`
 - Test: `tests/video-opacity.test.mjs`
 
-- [ ] **Step 1: Change the shared resize operation with a Huya-specific condition**
+- [x] **Step 1: Change the shared resize operation with a Huya-specific condition**
 
 Replace the existing `resize` member with:
 
@@ -84,7 +95,7 @@ resize: () => enqueue(async epoch => {
 
 This keeps all existing generation, disposal, fit calculation, persistence, and rollback behavior.
 
-- [ ] **Step 2: Run the focused test and verify GREEN**
+- [x] **Step 2: Run the focused test and verify GREEN**
 
 Run:
 
@@ -94,7 +105,7 @@ node --test tests/video-opacity.test.mjs
 
 Expected: all tests in `tests/video-opacity.test.mjs` pass.
 
-- [ ] **Step 3: Run the core regression suite**
+- [x] **Step 3: Run the core regression suite**
 
 Run:
 
@@ -104,7 +115,7 @@ npm test
 
 Expected: all project unit tests pass, including unchanged behavior for Bilibili and Kuaishou.
 
-- [ ] **Step 4: Build the Electron application**
+- [x] **Step 4: Build the Electron application**
 
 Run:
 
@@ -114,7 +125,7 @@ npm run build
 
 Expected: Electron Vite build completes successfully.
 
-- [ ] **Step 5: Commit the bug fix**
+- [x] **Step 5: Commit the bug fix**
 
 ```powershell
 git add tests/video-opacity.test.mjs src/renderer/src/features/video-opacity/controller.mjs docs/superpowers/plans/2026-09-22-huya-opacity-resize-fit.md

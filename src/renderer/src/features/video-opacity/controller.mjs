@@ -52,7 +52,11 @@ export function createVideoOpacityController({ state, platform, getWebview, sett
       state.ready = true
       if (state.hidden) await execute(setVideoHidden, [true])
     }),
-    resize: () => enqueue(async epoch => { if (state.ready && state.autoFit) await applyZoom(fittedZoom(), true, epoch) }),
+    resize: () => enqueue(async epoch => {
+      if (state.ready && (state.autoFit || platform.key === 'huyaOpacity')) {
+        await applyZoom(fittedZoom(), true, epoch)
+      }
+    }),
     setZoom: value => enqueue(epoch => { guest(); return applyZoom(value, false, epoch) }),
     restoreAutoFit: () => enqueue(epoch => { guest(); return applyZoom(fittedZoom(), true, epoch) }),
     navigate: direction => enqueue(() => execute(navigateVideo, [direction])),
