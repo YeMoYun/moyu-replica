@@ -20,6 +20,7 @@ import iconv from 'iconv-lite'
 import jschardet from 'jschardet'
 import { createStore } from './store.js'
 import { createWindowController } from './window-controls.mjs'
+import { normalizeNewFeatureWindow, presentWindow } from './window-opening.mjs'
 import { createAdWindowController } from './ad-window-controls.mjs'
 import { createChatWindowController } from './chat-window-controls.mjs'
 import { createChatServiceRegistry } from './chat-service-registry.mjs'
@@ -141,7 +142,7 @@ function makeWindow(key, opts) {
       guest.session.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false))
     })
   }
-  win.on('ready-to-show', () => win.show())
+  win.on('ready-to-show',()=>presentWindow(win))
   win.on('closed', () => { if (windows.get(key) === win) windows.delete(key) })
   return win
 }
@@ -153,7 +154,7 @@ function focus(key) {
     if (Object.hasOwn(AD_MODES, key)) w.show()
     else if (tryChatContext(key)) chatWindowControls.restore(key)
     else windowControls.restore(key)
-    w.focus()
+    presentWindow(w)
   }
 }
 
@@ -175,6 +176,10 @@ function openRoute(key, route, opts = {}) {
     const pos = bottomRight(opts.width || 800, opts.height || 600)
     win.setPosition(pos.x, pos.y)
   }
+  if (key !== 'main') normalizeNewFeatureWindow({
+    kind: Object.hasOwn(AD_MODES,key) ? 'ad' : tryChatContext(key) ? 'chat' : 'standard',
+    key, win, screen, windowControls, adWindowControls
+  })
   return win
 }
 

@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 
 let opening={}
 try{opening=await import('../src/main/window-opening.mjs')}catch(error){if(error.code!=='ERR_MODULE_NOT_FOUND')throw error}
@@ -68,4 +69,16 @@ test('foreground presentation restores only when minimized and never persists to
   const closed=fakeWindow();closed.destroyed=true
   assert.equal(opening.presentWindow(closed),false)
   assert.deepEqual(closed.calls,[])
+})
+
+test('main process normalizes new feature windows after legacy placement and presents every visible window',()=>{
+  const source=fs.readFileSync(new URL('../src/main/index.js',import.meta.url),'utf8')
+  assert.match(source,/import \{ normalizeNewFeatureWindow, presentWindow \} from '\.\/window-opening\.mjs'/)
+  assert.match(source,/ready-to-show[\s\S]*?presentWindow\(win\)/)
+  assert.match(source,/function focus\(key\)[\s\S]*?presentWindow\(w\)/)
+  const rightBottom=source.indexOf('if (opts.rightBottom')
+  const normalize=source.indexOf('normalizeNewFeatureWindow({')
+  assert.ok(rightBottom>=0&&normalize>rightBottom)
+  assert.match(source,/key !== 'main'/)
+  assert.match(source,/kind: Object\.hasOwn\(AD_MODES,key\) \? 'ad' : tryChatContext\(key\) \? 'chat' : 'standard'/)
 })
