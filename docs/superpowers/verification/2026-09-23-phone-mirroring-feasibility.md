@@ -22,15 +22,15 @@
 
 ## 纯无线真机检查
 
-- [ ] 全程未连接 USB
-- [ ] `adb pair` 使用六位配对码成功
-- [ ] `adb connect` 使用无线调试连接端口成功
-- [ ] ADB 设备状态为 `device`，不是 `offline` 或 `unauthorized`
-- [ ] QtScrcpy 投屏画面正常出现
-- [ ] 鼠标点击可以控制手机
-- [ ] Android Home 指令可以控制手机
-- [ ] 调整投屏窗口大小后画面继续正确适配
-- [ ] 断开后无需再次配对即可直接重新连接
+- [x] 全程未连接 USB
+- [x] `adb pair` 使用六位配对码成功
+- [x] `adb connect` 使用无线调试连接端口成功
+- [x] ADB 设备状态为 `device`，不是 `offline` 或 `unauthorized`
+- [x] QtScrcpy 投屏画面正常出现
+- [x] 鼠标点击可以控制手机
+- [x] Android Home 指令可以控制手机
+- [x] 调整投屏窗口大小后画面继续正确适配
+- [x] 断开后无需再次配对即可直接重新连接
 
 ## 敏感信息处理
 
@@ -39,4 +39,6 @@
 
 ## 结论
 
-状态：验证中
+状态：PASS
+
+结论：当前电脑上的 QtScrcpy v4.1.0 与内置 ADB 能够在完全不使用 USB 的情况下，通过 Android 11+ 配对码完成无线配对、连接、投屏、控制和直接重连。可以进入原生无线连接界面与 MoyuControlBar 实现阶段。
