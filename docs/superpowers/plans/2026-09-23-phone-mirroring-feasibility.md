@@ -1,316 +1,120 @@
-# Phone Mirroring Baseline Feasibility Implementation Plan
+# Phone Mirroring Wireless Feasibility Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Prove on this Windows machine that an unmodified, pinned QtScrcpy source build can launch and display/control one real Android device before any MoYuMaster UI or integration code is changed.
+**Goal:** Prove that the already-built, unmodified QtScrcpy v4.1.0 runtime can pair, connect, display, and control one Android 11+ phone entirely over wireless debugging, without using USB at any point.
 
-**Architecture:** Keep all source, toolchain, build, and runtime artifacts under the ignored `.artifacts/` directory. Pin QtScrcpy v4.1.0, reproduce its official Windows CI toolchain (Qt 5.15.2 with MSVC 2022), build and publish the untouched upstream application, then complete one user-observed USB-device session. Product code remains unchanged in this plan.
+**Architecture:** Reuse the pinned source, isolated Qt toolchain, successful build, and published runtime already present under ignored `.artifacts/` paths. Use the bundled ADB for one real pairing-code session and one direct reconnect, then run the untouched QtScrcpy UI against the wireless device. Keep the pairing code out of chat, project files, Git, and captured command output by having the user type it directly into an interactive local terminal; device addresses may appear transiently in ADB output but are never committed.
 
-**Tech Stack:** Windows PowerShell, Git, CMake 3.30.5, Visual Studio 2022 Build Tools/MSVC, Qt 5.15.2 `msvc2019_64`, QtScrcpy v4.1.0, ADB.
+**Tech Stack:** Windows PowerShell, QtScrcpy v4.1.0, bundled Android Debug Bridge 1.0.41 / 33.0.2, Android 11+ Wireless debugging, Git.
 
 ---
 
 ## Scope boundary
 
-This is the first of three implementation plans derived from `docs/superpowers/specs/2026-09-23-phone-mirroring-mode-design.md`:
+This plan implements only the highest-risk feasibility gate from `docs/superpowers/specs/2026-09-23-phone-mirroring-mode-design.md`.
 
-1. This plan: upstream source/build/real-device feasibility.
-2. Later plan: native `MoyuControlBar` in `Dialog` and `VideoForm`.
-3. Later plan: Electron entry, local IPC, boss-key integration, lifecycle, and packaging.
+Already completed and reused without repetition:
 
-Do not edit `src/`, `package.json`, existing transparent modes, or QtScrcpy source during this plan. A failed baseline must stop before product changes begin.
+- QtScrcpy v4.1.0 source pinned at `8c74f7199b159651c69e585989d362ee16a9d1da`.
+- QtScrcpyCore pinned at `9e388b8aa48e4e1c2cfdef408ef00c4c6b45c921`.
+- Qt 5.15.2 `msvc2019_64` installed in the ignored project-local toolchain.
+- Unmodified QtScrcpy successfully built and published to `.artifacts/qtscrcpy-runtime/`.
+- Bundled ADB verified to expose both `pair` and `connect` commands.
+
+Do not edit product code, QtScrcpy source, `src/`, `package.json`, or any existing transparent mode in this plan. Do not connect a USB cable. A failed wireless baseline stops later implementation work.
 
 ## File and artifact map
 
-- Create: `docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md` — durable evidence and the final PASS/BLOCKED decision.
-- Create ignored directory: `.artifacts/qtscrcpy-upstream/` — pristine v4.1.0 checkout including `QtScrcpyCore`.
-- Create ignored directory: `.artifacts/qtscrcpy-toolchain/` — isolated Python environment and Qt SDK if Qt is not already available.
-- Create ignored directory: `.artifacts/qtscrcpy-runtime/` — published Windows runtime used for the real-device check.
-- Do not add downloaded binaries or generated CMake output to Git.
+- Modify: `docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md` — replace the obsolete USB criteria with durable wireless evidence and the PASS/BLOCKED result.
+- Read only: `.artifacts/qtscrcpy-upstream/` — pristine upstream checkout.
+- Read and execute only: `.artifacts/qtscrcpy-runtime/` — existing published runtime, ADB, Qt libraries, configuration, and scrcpy server.
+- Do not commit `.artifacts/` or any device address, pairing code, screenshot, or runtime log.
 
-### Task 1: Record the immutable baseline and toolchain probe
+### Task 1: Align the verification record with the approved wireless-only design
 
 **Files:**
-- Create: `docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md`
+- Modify: `docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md`
 
-- [ ] **Step 1: Confirm the Git worktree is clean**
+- [ ] **Step 1: Replace the obsolete USB record with the wireless checklist**
 
-Run:
-
-```powershell
-git status --short --branch
-```
-
-Expected: `## main` and no changed paths. If product files are already dirty, stop and preserve those changes before continuing.
-
-- [ ] **Step 2: Re-run the compiler and CMake probe**
-
-Run:
-
-```powershell
-$vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
-$cmake = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
-& $vswhere -products * -version '[17.0,18.0)' -format json
-& $cmake --version
-Get-ChildItem 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC' -Directory
-```
-
-Expected:
-
-- Visual Studio Build Tools 2022 is complete and launchable.
-- CMake reports `3.30.5-msvc23` or a compatible newer version.
-- At least one MSVC toolset directory is listed.
-
-- [ ] **Step 3: Check for an existing Qt 5.15.2 installation without scanning whole drives**
-
-Run:
-
-```powershell
-$qtCandidates = @(
-  'D:\Qt\5.15.2\msvc2019_64',
-  'C:\Qt\5.15.2\msvc2019_64',
-  "$env:LOCALAPPDATA\Programs\Qt\5.15.2\msvc2019_64",
-  '.artifacts\qtscrcpy-toolchain\Qt\5.15.2\msvc2019_64'
-)
-$qtCandidates | ForEach-Object {
-  [pscustomobject]@{
-    Path = $_
-    QMake = Test-Path -LiteralPath (Join-Path $_ 'bin\qmake.exe')
-  }
-} | ConvertTo-Json
-```
-
-Expected on the current machine: every `QMake` value is `false`. If a valid existing installation is found, use it and skip Task 3.
-
-- [ ] **Step 4: Create the verification record with the known fixed baseline**
-
-Create `docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md` with exactly this initial content:
+Replace the file content with:
 
 ```markdown
-# 手机投屏模式基线可行性记录
+# 手机投屏模式纯无线可行性记录
 
 日期：2026-09-23
-目标：验证未修改 QtScrcpy v4.1.0 可在当前 Windows 电脑上从源码构建，并通过 USB 显示和控制一台真实 Android 设备。
+目标：验证未修改 QtScrcpy v4.1.0 可使用其内置 ADB，在完全不连接 USB 的情况下配对、连接、显示和控制一台 Android 11+ 真实设备。
 
 ## 固定基线
 
 - QtScrcpy：v4.1.0
 - 上游提交：`8c74f7199b159651c69e585989d362ee16a9d1da`
+- QtScrcpyCore：`9e388b8aa48e4e1c2cfdef408ef00c4c6b45c921`
 - 架构：Windows x64
 - 编译器：Visual Studio Build Tools 2022 / MSVC x64
-- CMake：Visual Studio 2022 附带版本
 - Qt：5.15.2 `msvc2019_64`
+- ADB：Android Debug Bridge 1.0.41 / 33.0.2
 
-## 检查结果
+## 已完成的本机构建证据
 
-- [ ] 上游源码及 QtScrcpyCore 子模块完整
-- [ ] 未修改源码构建成功
-- [ ] 发布目录包含 QtScrcpy、Qt 运行库、ADB、配置与 scrcpy-server
-- [ ] ADB 能识别并授权真实设备
-- [ ] 投屏画面正常出现
+- [x] 上游源码及 QtScrcpyCore 子模块完整且源码保持未修改
+- [x] 未修改源码构建成功
+- [x] 发布目录包含 QtScrcpy、Qt 运行库、ADB、配置与 scrcpy-server
+- [x] 内置 ADB 支持 `adb pair` 和 `adb connect`
+
+## 纯无线真机检查
+
+- [ ] 全程未连接 USB
+- [ ] `adb pair` 使用六位配对码成功
+- [ ] `adb connect` 使用无线调试连接端口成功
+- [ ] ADB 设备状态为 `device`，不是 `offline` 或 `unauthorized`
+- [ ] QtScrcpy 投屏画面正常出现
 - [ ] 鼠标点击可以控制手机
-- [ ] 键盘输入或快捷键可以控制手机
+- [ ] Android Home 指令可以控制手机
 - [ ] 调整投屏窗口大小后画面继续正确适配
+- [ ] 断开后无需再次配对即可直接重新连接
+
+## 敏感信息处理
+
+- 配对码由用户直接输入本机交互终端，未发送到聊天。
+- 配对码、设备地址和端口未写入项目文件或 Git。
 
 ## 结论
 
 状态：验证中
 ```
 
-- [ ] **Step 5: Commit the baseline record**
+- [ ] **Step 2: Check the record diff and obsolete wording**
+
+Run:
+
+```powershell
+git diff --check
+rg -n "开启 USB 调试|连接 USB 设备|通过 USB 显示" docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md
+git diff -- docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md
+```
+
+Expected: `git diff --check` passes and the search returns no obsolete USB instructions.
+
+- [ ] **Step 3: Commit the corrected verification baseline**
 
 Run:
 
 ```powershell
 git add -- docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md
-git commit -m "docs: start phone mirroring feasibility record"
+git commit -m "docs: switch phone mirroring probe to wireless"
 ```
 
 Expected: one documentation-only commit.
 
-### Task 2: Acquire and verify pristine QtScrcpy v4.1.0
+### Task 2: Reconfirm the existing runtime without rebuilding it
 
 **Files:**
-- Create ignored directory: `.artifacts/qtscrcpy-upstream/`
+- Read only: `.artifacts/qtscrcpy-runtime/`
+- Read only: `.artifacts/qtscrcpy-upstream/`
 
-- [ ] **Step 1: Verify the destination is safe and unused**
-
-Run:
-
-```powershell
-$repoRoot = (Resolve-Path '.').Path
-$upstream = [System.IO.Path]::GetFullPath((Join-Path $repoRoot '.artifacts\qtscrcpy-upstream'))
-if (-not $upstream.StartsWith((Join-Path $repoRoot '.artifacts'), [System.StringComparison]::OrdinalIgnoreCase)) {
-  throw "QtScrcpy target escaped .artifacts: $upstream"
-}
-if (Test-Path -LiteralPath $upstream) {
-  throw "QtScrcpy target already exists; inspect it instead of overwriting: $upstream"
-}
-$upstream
-```
-
-Expected: an absolute path beneath `D:\deepseekharness\moyu-replica\.artifacts`.
-
-- [ ] **Step 2: Clone the official v4.1.0 tag without changing the user's Git proxy configuration**
-
-The user's persistent Git proxy currently points to an unavailable local port. Override it only for these commands:
-
-```powershell
-git -c http.proxy= -c https.proxy= clone --branch v4.1.0 --depth 1 https://gitee.com/Barryda/QtScrcpy.git .artifacts/qtscrcpy-upstream
-```
-
-Expected: checkout completes without modifying global or repository proxy settings.
-
-- [ ] **Step 3: Initialize the GitHub-hosted QtScrcpyCore submodule over HTTPS**
-
-The upstream `.gitmodules` file uses an SSH URL. Override that URL only for this checkout:
-
-```powershell
-git -C .artifacts/qtscrcpy-upstream config submodule.QtScrcpy/QtScrcpyCore.url https://github.com/barry-ran/QtScrcpyCore.git
-git -C .artifacts/qtscrcpy-upstream -c http.proxy= -c https.proxy= submodule update --init --depth 1 QtScrcpy/QtScrcpyCore
-```
-
-Expected: `QtScrcpy/QtScrcpyCore/CMakeLists.txt` exists.
-
-- [ ] **Step 4: Verify the exact source revision and clean state**
-
-Run:
-
-```powershell
-git -C .artifacts/qtscrcpy-upstream rev-parse HEAD
-git -C .artifacts/qtscrcpy-upstream status --short
-git -C .artifacts/qtscrcpy-upstream submodule status
-```
-
-Expected:
-
-- HEAD is `8c74f7199b159651c69e585989d362ee16a9d1da`.
-- The checkout has no modifications.
-- The submodule line does not begin with `-` or `+`.
-
-- [ ] **Step 5: Confirm the upstream license is present**
-
-Run:
-
-```powershell
-Get-FileHash .artifacts/qtscrcpy-upstream/LICENSE -Algorithm SHA256
-Get-Content .artifacts/qtscrcpy-upstream/LICENSE -TotalCount 5
-```
-
-Expected: the file begins with `Apache License` and `Version 2.0`.
-
-### Task 3: Install an isolated Qt SDK only if the probe found none
-
-**Files:**
-- Create ignored directory: `.artifacts/qtscrcpy-toolchain/`
-
-- [ ] **Step 1: Stop for explicit approval before the large dependency download**
-
-Report that Qt 5.15.2 development files are absent, that Visual Studio and CMake are already usable, and that the proposed Qt/Python environment will live only under `.artifacts/qtscrcpy-toolchain/`. Do not run the remaining Task 3 steps until the user approves the download.
-
-- [ ] **Step 2: Create a project-local Python environment**
-
-Run:
-
-```powershell
-py -3 -m venv .artifacts/qtscrcpy-toolchain/venv
-& .artifacts/qtscrcpy-toolchain/venv/Scripts/python.exe -m pip install --upgrade pip
-& .artifacts/qtscrcpy-toolchain/venv/Scripts/python.exe -m pip install aqtinstall==3.3.0
-```
-
-Expected: `aqt.exe` is created beneath `.artifacts/qtscrcpy-toolchain/venv/Scripts/`.
-
-- [ ] **Step 3: Install the same Qt version and architecture used by upstream Windows CI**
-
-Run:
-
-```powershell
-& .artifacts/qtscrcpy-toolchain/venv/Scripts/aqt.exe install-qt windows desktop 5.15.2 win64_msvc2019_64 --outputdir .artifacts/qtscrcpy-toolchain/Qt
-```
-
-Expected: `.artifacts/qtscrcpy-toolchain/Qt/5.15.2/msvc2019_64/bin/qmake.exe` exists.
-
-- [ ] **Step 4: Verify Qt without changing the machine PATH**
-
-Run:
-
-```powershell
-& .artifacts/qtscrcpy-toolchain/Qt/5.15.2/msvc2019_64/bin/qmake.exe -query QT_VERSION
-& .artifacts/qtscrcpy-toolchain/Qt/5.15.2/msvc2019_64/bin/qmake.exe -query QT_INSTALL_PREFIX
-```
-
-Expected: version `5.15.2` and a prefix inside this repository's `.artifacts` directory.
-
-### Task 4: Build and publish the unmodified upstream application
-
-**Files:**
-- Create ignored build output below `.artifacts/qtscrcpy-upstream/output/`
-- Create ignored runtime: `.artifacts/qtscrcpy-runtime/`
-
-- [ ] **Step 1: Set process-local build environment variables**
-
-Run in one PowerShell session:
-
-```powershell
-$upstream = (Resolve-Path '.artifacts/qtscrcpy-upstream').Path
-$qtBase = (Resolve-Path '.artifacts/qtscrcpy-toolchain/Qt/5.15.2').Path
-$cmakeDir = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin'
-$env:ENV_QT_PATH = $qtBase
-$env:ENV_VCVARSALL = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat'
-$env:ENV_VCINSTALL = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC'
-$env:PATH = "$cmakeDir;$env:PATH"
-```
-
-Expected: no persistent environment variables are written.
-
-- [ ] **Step 2: Build with the upstream Windows build script**
-
-Run:
-
-```powershell
-Push-Location $upstream
-try {
-  & cmd.exe /d /c 'ci\win\build_for_win.bat RelWithDebInfo x64'
-  if ($LASTEXITCODE -ne 0) { throw "QtScrcpy build failed with exit code $LASTEXITCODE" }
-} finally {
-  Pop-Location
-}
-```
-
-Expected: `.artifacts/qtscrcpy-upstream/output/x64/RelWithDebInfo/QtScrcpy.exe` exists.
-
-- [ ] **Step 3: Prove the source stayed unmodified after the build**
-
-Run:
-
-```powershell
-git -C .artifacts/qtscrcpy-upstream status --short
-git -C .artifacts/qtscrcpy-upstream diff --exit-code
-```
-
-Expected: no tracked source changes. Generated ignored/untracked build directories are acceptable only outside tracked source paths.
-
-- [ ] **Step 4: Publish a runnable directory with upstream's deployment script**
-
-Run:
-
-```powershell
-$runtime = [System.IO.Path]::GetFullPath((Join-Path (Resolve-Path '.').Path '.artifacts\qtscrcpy-runtime'))
-if (Test-Path -LiteralPath $runtime) {
-  throw "Runtime target already exists; inspect it instead of overwriting: $runtime"
-}
-Push-Location $upstream
-try {
-  & cmd.exe /d /c 'ci\win\publish_for_win.bat x64 ..\..\..\qtscrcpy-runtime'
-  if ($LASTEXITCODE -ne 0) { throw "QtScrcpy publish failed with exit code $LASTEXITCODE" }
-} finally {
-  Pop-Location
-}
-```
-
-Expected: `.artifacts/qtscrcpy-runtime/QtScrcpy.exe` exists.
-
-- [ ] **Step 5: Check the minimum runtime payload**
+- [ ] **Step 1: Confirm the required runtime payload still exists**
 
 Run:
 
@@ -323,29 +127,32 @@ $required = @(
   '.artifacts\qtscrcpy-runtime\scrcpy-server',
   '.artifacts\qtscrcpy-runtime\config\config.ini'
 )
-$required | ForEach-Object { [pscustomobject]@{Path=$_;Exists=Test-Path -LiteralPath $_} } | Format-Table -AutoSize
-if ($required.Where({ -not (Test-Path -LiteralPath $_) }).Count) { throw 'Published runtime is incomplete' }
+$missing = $required | Where-Object { -not (Test-Path -LiteralPath $_) }
+if ($missing) { throw "Runtime is incomplete: $($missing -join ', ')" }
+$required | ForEach-Object { Get-Item -LiteralPath $_ | Select-Object FullName, Length }
 ```
 
-Expected: every item reports `True`.
+Expected: six files are listed and no exception is raised.
 
-### Task 5: Complete one real-device USB session
+- [ ] **Step 2: Confirm source immutability and the bundled ADB feature set**
 
-**Files:**
-- Modify: `docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md`
+Run:
 
-- [ ] **Step 1: Ask the user to prepare the Android device**
+```powershell
+git -C .artifacts/qtscrcpy-upstream status --short
+git -C .artifacts/qtscrcpy-upstream rev-parse HEAD
+& .artifacts/qtscrcpy-runtime/adb.exe version
+& .artifacts/qtscrcpy-runtime/adb.exe help | Select-String -Pattern '^\s*pair HOST','^\s*connect HOST'
+```
 
-Required user actions:
+Expected:
 
-1. Use Android 5.0 or newer.
-2. Enable Developer options and USB debugging.
-3. Connect with a data-capable USB cable.
-4. Unlock the phone and accept the computer's RSA debugging prompt.
+- Source status is empty.
+- HEAD is `8c74f7199b159651c69e585989d362ee16a9d1da`.
+- ADB reports version 1.0.41 / 33.0.2.
+- Help output contains both `pair HOST[:PORT] [PAIRING CODE]` and `connect HOST[:PORT]`.
 
-Do not change phone settings automatically.
-
-- [ ] **Step 2: Verify ADB authorization before opening QtScrcpy**
+- [ ] **Step 3: Confirm no USB device is present before pairing**
 
 Run:
 
@@ -354,56 +161,219 @@ Run:
 & .artifacts/qtscrcpy-runtime/adb.exe devices -l
 ```
 
-Expected: exactly one intended device line ends in `device`, not `unauthorized` or `offline`. If multiple devices are present, identify the intended serial before continuing.
+Expected: no physical USB device appears. If any device is already listed, identify whether it is a previous network serial in `IP:port` form; disconnect it before starting the fresh probe. Do not unplug or alter unrelated devices automatically.
 
-- [ ] **Step 3: Launch the visible upstream application for user interaction**
+### Task 3: Pair the phone without exposing the pairing code
+
+**Files:**
+- Execute only: `.artifacts/qtscrcpy-runtime/adb.exe`
+
+- [ ] **Step 1: Ask the user to prepare the phone**
+
+Required user actions:
+
+1. Keep the phone and computer on the same mutually reachable network.
+2. On Android 11+, open Developer options → Wireless debugging.
+3. Turn on Wireless debugging.
+4. Open “Pair device with pairing code” and leave that page visible.
+5. Keep USB physically disconnected.
+
+Do not ask the user to paste the six-digit code into chat.
+
+- [ ] **Step 2: Open a visible local pairing terminal**
 
 Run:
 
 ```powershell
-$runtime = (Resolve-Path '.artifacts/qtscrcpy-runtime').Path
+$runtime = (Resolve-Path '.artifacts\qtscrcpy-runtime').Path
+$adb = (Resolve-Path (Join-Path $runtime 'adb.exe')).Path
+$escapedAdb = $adb.Replace("'", "''")
+$pairCommand = @"
+`$pairAddress = Read-Host '请输入手机配对窗口显示的 IP:配对端口'
+& '$escapedAdb' pair `$pairAddress
+Write-Host ''
+Read-Host '记住上面的配对结果，然后按 Enter 关闭窗口'
+"@
+$encodedPairCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($pairCommand))
+Start-Process -FilePath 'powershell.exe' -WorkingDirectory $runtime -WindowStyle Normal -ArgumentList @(
+  '-NoLogo', '-NoProfile', '-NoExit', '-EncodedCommand', $encodedPairCommand
+)
+```
+
+Expected: a visible PowerShell window asks for the pairing address, then ADB asks for the six-digit pairing code. The user types both directly in that local window. The code does not appear in Codex chat or Git.
+
+- [ ] **Step 3: Record only the pairing outcome**
+
+Ask the user whether the terminal reported `Successfully paired to ...`.
+
+Expected: pairing succeeds. If it reports a wrong code, timeout, or network error, stop and record the exact non-secret error category; do not proceed to QtScrcpy.
+
+### Task 4: Connect the paired phone over its separate debugging port
+
+**Files:**
+- Execute only: `.artifacts/qtscrcpy-runtime/adb.exe`
+
+- [ ] **Step 1: Keep the wireless debugging main page visible**
+
+The user closes the pairing-code popup and reads the `IP address & Port` shown on the main Wireless debugging page. This connection port may differ from the pairing port.
+
+- [ ] **Step 2: Open a visible local connection terminal**
+
+Run:
+
+```powershell
+$runtime = (Resolve-Path '.artifacts\qtscrcpy-runtime').Path
+$adb = (Resolve-Path (Join-Path $runtime 'adb.exe')).Path
+$escapedAdb = $adb.Replace("'", "''")
+$connectCommand = @"
+`$connectAddress = Read-Host '请输入无线调试主页显示的 IP:连接端口'
+& '$escapedAdb' connect `$connectAddress
+Write-Host ''
+& '$escapedAdb' devices -l
+Write-Host ''
+Read-Host '记住上面的连接结果，然后按 Enter 关闭窗口'
+"@
+$encodedConnectCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($connectCommand))
+Start-Process -FilePath 'powershell.exe' -WorkingDirectory $runtime -WindowStyle Normal -ArgumentList @(
+  '-NoLogo', '-NoProfile', '-NoExit', '-EncodedCommand', $encodedConnectCommand
+)
+```
+
+Expected: ADB reports `connected to ...`, and the device list contains one intended `IP:port` serial in state `device`.
+
+- [ ] **Step 3: Independently verify the connected device state**
+
+After the user closes the visible terminal, run:
+
+```powershell
+$adbOutput = & .artifacts/qtscrcpy-runtime/adb.exe devices -l
+$adbOutput
+$networkDevices = $adbOutput | Where-Object { $_ -match '^\S+:\d+\s+device\b' }
+if ($networkDevices.Count -ne 1) {
+  throw "Expected exactly one connected wireless device; found $($networkDevices.Count)"
+}
+```
+
+Expected: exactly one wireless serial is in `device` state. Stop on `offline`, `unauthorized`, zero devices, or multiple ambiguous devices.
+
+### Task 5: Exercise the untouched QtScrcpy projection path
+
+**Files:**
+- Execute only: `.artifacts/qtscrcpy-runtime/QtScrcpy.exe`
+
+- [ ] **Step 1: Launch QtScrcpy from its runtime directory**
+
+Run:
+
+```powershell
+$runtime = (Resolve-Path '.artifacts\qtscrcpy-runtime').Path
 Start-Process -FilePath (Join-Path $runtime 'QtScrcpy.exe') -WorkingDirectory $runtime
 ```
 
-The window is intentionally visible because the user must interact with and assess it.
+Expected: the unmodified QtScrcpy v4.1.0 main window opens visibly.
 
-- [ ] **Step 4: Exercise only the critical real-device path**
+- [ ] **Step 2: Start the wireless device using the existing QtScrcpy flow**
 
 In QtScrcpy:
 
 1. Refresh the device list.
-2. Select the authorized USB device.
+2. Select the `IP:连接端口` device already connected by ADB.
 3. Start the service.
-4. Confirm that the phone picture appears.
-5. Click one harmless phone UI target from the PC.
-6. Use `Ctrl+H` and confirm Android Home is triggered.
-7. Resize the projection window smaller and larger; confirm the full phone picture continues to fit without manual scrolling.
-8. Stop the service and close QtScrcpy.
+4. Confirm that a phone projection window opens.
 
-Acceptance criteria: no crash, usable picture, working input, working Home command, and correct resize behavior.
+Acceptance: no USB cable is connected and the live phone image appears without a crash.
 
-- [ ] **Step 5: Check for leftover processes**
+- [ ] **Step 3: Exercise only the critical control and resize behavior**
+
+In the projection window:
+
+1. Click one harmless phone UI target and confirm the phone responds.
+2. Use QtScrcpy's Android Home action and confirm the phone returns Home.
+3. Resize the projection window smaller and larger.
+4. Confirm the complete phone image continues to fit without manual scrolling.
+5. Stop the service and close QtScrcpy normally.
+
+Acceptance: picture, click control, Home control, and resize behavior all work.
+
+- [ ] **Step 4: Check normal process cleanup**
 
 Run:
 
 ```powershell
-Get-Process QtScrcpy,adb -ErrorAction SilentlyContinue | Select-Object ProcessName,Id,Path
+Get-Process QtScrcpy,adb -ErrorAction SilentlyContinue | Select-Object ProcessName, Id, Path
 ```
 
-Expected: QtScrcpy is gone after normal exit. `adb` may remain as its normal server process; record that fact rather than force-killing it.
+Expected: QtScrcpy is gone after normal exit. The ADB server may remain; record that fact and do not force-kill it.
 
-### Task 6: Finalize the feasibility decision
+### Task 6: Prove direct reconnect without pairing again
+
+**Files:**
+- Execute only: `.artifacts/qtscrcpy-runtime/adb.exe`
+
+- [ ] **Step 1: Disconnect the current wireless serial**
+
+Run:
+
+```powershell
+$deviceLine = (& .artifacts/qtscrcpy-runtime/adb.exe devices) | Where-Object { $_ -match '^(\S+:\d+)\s+device$' } | Select-Object -First 1
+if (-not $deviceLine) { throw 'No connected wireless device available for reconnect test' }
+$serial = ([regex]::Match($deviceLine, '^(\S+:\d+)')).Groups[1].Value
+& .artifacts/qtscrcpy-runtime/adb.exe disconnect $serial
+& .artifacts/qtscrcpy-runtime/adb.exe devices
+```
+
+Expected: ADB reports the network serial disconnected and it no longer appears as `device`.
+
+- [ ] **Step 2: Reconnect using only `adb connect`**
+
+Run:
+
+```powershell
+$runtime = (Resolve-Path '.artifacts\qtscrcpy-runtime').Path
+$adb = (Resolve-Path (Join-Path $runtime 'adb.exe')).Path
+$escapedAdb = $adb.Replace("'", "''")
+$reconnectCommand = @"
+`$connectAddress = Read-Host '再次输入无线调试主页显示的 IP:连接端口（不要重新配对）'
+& '$escapedAdb' connect `$connectAddress
+Write-Host ''
+& '$escapedAdb' devices -l
+Write-Host ''
+Read-Host '记住上面的重连结果，然后按 Enter 关闭窗口'
+"@
+$encodedReconnectCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($reconnectCommand))
+Start-Process -FilePath 'powershell.exe' -WorkingDirectory $runtime -WindowStyle Normal -ArgumentList @(
+  '-NoLogo', '-NoProfile', '-NoExit', '-EncodedCommand', $encodedReconnectCommand
+)
+```
+
+Expected: the phone returns to state `device` without running `adb pair` again.
+
+- [ ] **Step 3: Verify the reconnected state**
+
+Run:
+
+```powershell
+$adbOutput = & .artifacts/qtscrcpy-runtime/adb.exe devices -l
+$adbOutput
+if (-not ($adbOutput | Where-Object { $_ -match '^\S+:\d+\s+device\b' })) {
+  throw 'Wireless reconnect did not return a device-state network serial'
+}
+```
+
+Expected: one wireless device is again in `device` state.
+
+### Task 7: Finalize the wireless feasibility decision
 
 **Files:**
 - Modify: `docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md`
 
-- [ ] **Step 1: Mark each observed checklist item**
+- [ ] **Step 1: Mark only directly observed wireless checks**
 
-Change only successfully observed items from `- [ ]` to `- [x]`. Do not mark an item from build logs alone when it requires user-visible phone behavior.
+Change a checklist item from `- [ ]` to `- [x]` only when the command output or user-observed QtScrcpy behavior proved it. Never infer picture or input success from process existence.
 
-- [ ] **Step 2: Record a strict conclusion**
+- [ ] **Step 2: Record the strict conclusion**
 
-If all eight checklist items passed, replace:
+If every wireless check passed, replace:
 
 ```markdown
 状态：验证中
@@ -414,42 +384,43 @@ with:
 ```markdown
 状态：PASS
 
-结论：当前电脑能够从未修改的 QtScrcpy v4.1.0 源码构建出完整 Windows x64 运行目录，并能通过 USB 显示和控制真实 Android 设备。可以进入 MoyuControlBar 原生改造阶段。
+结论：当前电脑上的 QtScrcpy v4.1.0 与内置 ADB 能够在完全不使用 USB 的情况下，通过 Android 11+ 配对码完成无线配对、连接、投屏、控制和直接重连。可以进入原生无线连接界面与 MoyuControlBar 实现阶段。
 ```
 
-If any required item failed, replace it with:
+If any required check failed, use:
 
 ```markdown
 状态：BLOCKED
 
-结论：基线链路尚未通过，不能进入 MoyuControlBar 改造。失败项和原始错误已记录在下方。
+结论：纯无线基线链路尚未全部通过，不能进入 QtScrcpy 产品改造。失败步骤、非敏感错误类别和实际观察结果已记录；配对码和设备地址未记录。
 ```
 
-Then append the exact failing command, exit code, and concise error text. Do not propose product-code workarounds for a broken upstream baseline.
+For a BLOCKED result, append the failed checklist item and sanitized error text under a `## 失败证据` heading. Do not record the pairing code, IP address, or ports.
 
-- [ ] **Step 3: Review the repository diff**
+- [ ] **Step 3: Review the repository boundary**
 
 Run:
 
 ```powershell
 git status --short
+git diff --check
 git diff -- docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md
+git check-ignore -v .artifacts/qtscrcpy-runtime/QtScrcpy.exe
 ```
 
-Expected: only the verification record is modified; `.artifacts` remains ignored.
+Expected: only the verification record is modified; `.artifacts` is still ignored; no address, port, or pairing code appears in the diff.
 
-- [ ] **Step 4: Commit the evidence**
+- [ ] **Step 4: Commit the truthful evidence**
 
 Run:
 
 ```powershell
 git add -- docs/superpowers/verification/2026-09-23-phone-mirroring-feasibility.md
-git commit -m "docs: record phone mirroring feasibility"
+git commit -m "docs: record wireless phone mirroring feasibility"
 ```
 
-Expected: one evidence-only commit. If the result is BLOCKED, committing the truthful failure record is still correct.
+Expected: one evidence-only commit. Commit either PASS or BLOCKED truthfully.
 
 ## Completion gate
 
-Do not create the native toolbar implementation plan until this record says `PASS`. A PASS authorizes planning the Qt source changes; it does not by itself authorize installing application-wide packaging dependencies or modifying existing transparent-mode behavior.
-
+Do not modify QtScrcpy source or MoYuMaster product code unless the verification record says `PASS`. A PASS authorizes a separate implementation plan for the native wireless connection UI and `MoyuControlBar`; Electron entry, local IPC, lifecycle, and packaging remain a later independently reviewable plan.
