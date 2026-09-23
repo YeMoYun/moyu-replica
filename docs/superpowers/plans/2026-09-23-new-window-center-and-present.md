@@ -376,7 +376,7 @@ git commit -m "test: prove centered feature window reopening"
 **Files:**
 - Verify only
 
-- [ ] **Step 1: Confirm formatting and working-tree state**
+- [x] **Step 1: Confirm formatting and working-tree state**
 
 ```powershell
 git diff --check
