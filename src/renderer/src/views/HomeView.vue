@@ -245,8 +245,12 @@ async function clearCache() {
 
 <style scoped>
 .home {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  width: 100%;
   height: 100%;
   overflow: auto;
+  box-sizing: border-box;
   color: #f7f8ff;
   background: radial-gradient(circle at 50% 0, #292b4b 0, #20223e 38%, #191a31 100%);
   font-family: "Microsoft YaHei", sans-serif;
@@ -257,24 +261,24 @@ async function clearCache() {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 118px;
+  height: 84px;
 }
 
 .logo {
-  font-size: 50px;
+  font-size: 42px;
   font-weight: 800;
   letter-spacing: 1px;
   text-shadow: 0 4px 20px #0008;
 }
 
 .logo span {
-  margin-left: 14px;
-  font-size: 40px;
+  margin-left: 10px;
+  font-size: 34px;
 }
 
 .logout {
   position: absolute;
-  top: 28px;
+  top: 22px;
   right: 28px;
   color: #fff;
   font-size: 15px;
@@ -284,9 +288,10 @@ async function clearCache() {
 }
 
 .app-error {
-  margin: 0 30px 14px;
-  padding: 10px 14px;
+  margin: 0 30px 10px;
+  padding: 8px 12px;
   color: #664d03;
+  line-height: 1.35;
   background: #fff3cd;
   border: 1px solid #d6b76a;
   border-radius: 8px;
@@ -295,13 +300,16 @@ async function clearCache() {
 .dashboard {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 14px 24px;
+  min-height: 0;
   padding: 0 30px;
 }
 
 .group {
-  min-height: 242px;
-  padding: 22px 24px;
+  min-height: 0;
+  padding: 12px 16px;
+  box-sizing: border-box;
   background: #35364d;
   border: 1px solid #4b4d69;
   border-radius: 15px;
@@ -309,27 +317,30 @@ async function clearCache() {
 }
 
 .group h3 {
-  margin: 0 0 17px;
-  padding-bottom: 9px;
+  margin: 0 0 8px;
+  padding-bottom: 6px;
   color: #9db5ff;
-  font-size: 24px;
+  font-size: 21px;
+  line-height: 1.2;
   border-bottom: 1px solid #50516b;
 }
 
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 8px;
 }
 
 .grid button {
-  min-height: 58px;
+  min-height: 40px;
+  padding: 4px 8px;
   color: #fff;
-  font-size: 17px;
+  font-size: 15px;
+  line-height: 1.2;
   cursor: pointer;
   background: #5b5c73;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 .grid button:hover,
@@ -345,12 +356,26 @@ async function clearCache() {
 
 .ad-cover-entry {
   display: block;
-  margin: 32px auto;
+  margin: 9px auto 11px;
   color: #4f9aff;
-  font-size: 17px;
+  font-size: 15px;
   cursor: pointer;
   background: none;
   border: 0;
+}
+
+@media (max-width: 900px), (max-height: 650px) {
+  .home {
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .dashboard {
+    grid-template-rows: none;
+  }
+
+  .group {
+    min-height: 220px;
+  }
 }
 
 @media (max-width: 900px) {

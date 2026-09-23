@@ -20,7 +20,7 @@
 **Files:**
 - Modify: `scripts/window-smoke.cjs`
 
-- [ ] **Step 1: Add the failing desktop-fit and compact-fallback smoke check**
+- [x] **Step 1: Add the failing desktop-fit and compact-fallback smoke check**
 
 Insert this check after `home exposes seven video entries and five-mode chooser` and before the preload check:
 
@@ -60,7 +60,7 @@ await check('home dashboard fits desktop viewport and keeps a readable compact f
 })
 ```
 
-- [ ] **Step 2: Run the existing built application and verify RED**
+- [x] **Step 2: Run the existing built application and verify RED**
 
 Run:
 
@@ -77,7 +77,7 @@ Expected: syntax and build succeed; smoke fails at `home dashboard fits desktop 
 **Files:**
 - Modify: `src/renderer/src/views/HomeView.vue`
 
-- [ ] **Step 1: Replace only the home layout CSS before the existing mobile rule**
+- [x] **Step 1: Replace only the home layout CSS before the existing mobile rule**
 
 Keep the template and script unchanged. Replace the current declarations for `.home`, `.top`, `.logo`, `.logo span`, `.logout`, `.app-error`, `.dashboard`, `.group`, `.group h3`, `.grid`, `.grid button`, and `.ad-cover-entry` with:
 
@@ -194,7 +194,7 @@ Keep the template and script unchanged. Replace the current declarations for `.h
 
 Keep the existing hover/focus and `.grid .wide` rules unchanged.
 
-- [ ] **Step 2: Add the short-window and narrow-window fallback rules**
+- [x] **Step 2: Add the short-window and narrow-window fallback rules**
 
 Replace the existing `@media (max-width: 900px)` block with these rules:
 
@@ -226,7 +226,7 @@ Replace the existing `@media (max-width: 900px)` block with these rules:
 
 Keep the existing `@media (max-width: 620px)` block so the dashboard becomes one column and logout remains outside the centered title flow.
 
-- [ ] **Step 3: Build and verify GREEN in the real Electron smoke**
+- [x] **Step 3: Build and verify GREEN in the real Electron smoke**
 
 Run:
 
@@ -237,7 +237,7 @@ npm run test:smoke
 
 Expected: build succeeds; the new home-layout check passes at both viewports; all existing smoke checks and the restart run pass with isolated user data and remote requests blocked.
 
-- [ ] **Step 4: Run the focused home interaction regressions**
+- [x] **Step 4: Run the focused home interaction regressions**
 
 Run:
 
@@ -247,7 +247,7 @@ node --test tests/home-view.test.mjs tests/home-video-entry.test.mjs tests/home-
 
 Expected: all focused tests pass, proving that entry wiring, chooser behavior, errors, and mobile logout behavior remain unchanged.
 
-- [ ] **Step 5: Confirm the patch contains no unrelated functional changes**
+- [x] **Step 5: Confirm the patch contains no unrelated functional changes**
 
 Run:
 
@@ -258,7 +258,7 @@ git diff -- src/renderer/src/views/HomeView.vue scripts/window-smoke.cjs
 
 Expected: no whitespace errors; the Vue template and script are unchanged; the only functional test addition is the home viewport check.
 
-- [ ] **Step 6: Commit the responsive dashboard**
+- [x] **Step 6: Commit the responsive dashboard**
 
 ```powershell
 git add src/renderer/src/views/HomeView.vue scripts/window-smoke.cjs docs/superpowers/plans/2026-09-23-home-responsive-dashboard.md

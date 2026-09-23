@@ -75,6 +75,39 @@ app.whenReady().then(async () => {
       )
       assert.equal(await evaluate(home, 'Boolean(document.querySelector("[role=dialog]"))'), false)
     })
+    await check('home dashboard fits desktop viewport and keeps a readable compact fallback',async()=>{
+      home.setContentSize(1234,770)
+      await pause(150)
+      const desktop=await evaluate(home,`(()=>{
+        const page=document.querySelector('.home')
+        const groups=[...document.querySelectorAll('.dashboard .group')]
+        const footer=document.querySelector('.ad-cover-entry')
+        return {
+          groups:groups.length,
+          clientHeight:page.clientHeight,
+          scrollHeight:page.scrollHeight,
+          footerBottom:Math.ceil(footer.getBoundingClientRect().bottom)
+        }
+      })()`)
+      assert.equal(desktop.groups,6)
+      assert.ok(desktop.scrollHeight<=desktop.clientHeight+1,`desktop home scrolls: ${desktop.scrollHeight}/${desktop.clientHeight}`)
+      assert.ok(desktop.footerBottom<=desktop.clientHeight+1,`footer bottom ${desktop.footerBottom} exceeds ${desktop.clientHeight}`)
+
+      home.setContentSize(900,650)
+      await pause(150)
+      const compact=await evaluate(home,`(()=>{
+        const dashboard=document.querySelector('.dashboard')
+        return {
+          columns:getComputedStyle(dashboard).gridTemplateColumns.split(' ').filter(Boolean).length,
+          buttons:document.querySelectorAll('.dashboard button').length
+        }
+      })()`)
+      assert.equal(compact.columns,2)
+      assert.equal(compact.buttons,22)
+
+      home.setContentSize(1234,770)
+      await pause(100)
+    })
     await check('preload exposes sender-targeted window control', async () => assert.equal(await evaluate(home,'typeof window.windowControl.getState'), 'function'))
     await evaluate(home, 'window.homeElectronAPI.createWeb()')
     let web = await until(() => find('/web'), 'web')
