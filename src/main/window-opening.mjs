@@ -15,7 +15,9 @@ export function centerWindowOnActiveDisplay(win,screen){
     y:workArea.y+Math.round((workArea.height-height)/2),
     width,height
   }
-  win.setBounds(bounds)
+  if(width===current.width&&height===current.height&&typeof win.setPosition==='function'){
+    win.setPosition(bounds.x,bounds.y)
+  }else win.setBounds(bounds)
   return bounds
 }
 

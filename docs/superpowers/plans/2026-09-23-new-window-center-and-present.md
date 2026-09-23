@@ -23,7 +23,7 @@
 - Create: `tests/window-opening.test.mjs`
 - Create: `src/main/window-opening.mjs`
 
-- [ ] **Step 1: Write failing unit tests for centering, state reset, and temporary foreground presentation**
+- [x] **Step 1: Write failing unit tests for centering, state reset, and temporary foreground presentation**
 
 Create `tests/window-opening.test.mjs` with:
 
@@ -101,7 +101,7 @@ test('foreground presentation restores only when minimized and never persists to
 })
 ```
 
-- [ ] **Step 2: Run the focused unit test and verify RED**
+- [x] **Step 2: Run the focused unit test and verify RED**
 
 Run:
 
@@ -111,7 +111,7 @@ node --test tests/window-opening.test.mjs
 
 Expected: FAIL because `src/main/window-opening.mjs` and its exported functions do not exist.
 
-- [ ] **Step 3: Implement the minimal shared opening helper**
+- [x] **Step 3: Implement the minimal shared opening helper**
 
 Create `src/main/window-opening.mjs` with:
 
@@ -162,7 +162,7 @@ export function presentWindow(win){
 }
 ```
 
-- [ ] **Step 4: Run the focused unit test and verify GREEN**
+- [x] **Step 4: Run the focused unit test and verify GREEN**
 
 Run:
 
@@ -172,7 +172,7 @@ node --test tests/window-opening.test.mjs
 
 Expected: all five tests pass.
 
-- [ ] **Step 5: Commit the helper and contract tests**
+- [x] **Step 5: Commit the helper and contract tests**
 
 ```powershell
 git add src/main/window-opening.mjs tests/window-opening.test.mjs
@@ -185,7 +185,7 @@ git commit -m "feat: define centered feature window opening"
 - Modify: `tests/window-opening.test.mjs`
 - Modify: `src/main/index.js`
 
-- [ ] **Step 1: Add a failing wiring test**
+- [x] **Step 1: Add a failing wiring test**
 
 Append to `tests/window-opening.test.mjs`:
 
@@ -205,7 +205,7 @@ test('main process normalizes new feature windows after legacy placement and pre
 })
 ```
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -215,7 +215,7 @@ node --test tests/window-opening.test.mjs
 
 Expected: the wiring test fails because `src/main/index.js` does not import or call the opening helper.
 
-- [ ] **Step 3: Use the presenter when a window becomes visible**
+- [x] **Step 3: Use the presenter when a window becomes visible**
 
 Add this import near the other main-process helpers in `src/main/index.js`:
 
@@ -237,7 +237,7 @@ presentWindow(w)
 
 The existing controller-specific restore calls remain in place so hidden-state semantics are unchanged.
 
-- [ ] **Step 4: Normalize only newly created child windows after legacy positioning**
+- [x] **Step 4: Normalize only newly created child windows after legacy positioning**
 
 At the end of `openRoute`, after the `opts.rightBottom` block and before `return win`, add:
 
@@ -250,7 +250,7 @@ if(key!=='main')normalizeNewFeatureWindow({
 
 This placement deliberately uses the width and height already restored and validated by the relevant controller, then overwrites only its position and appearance.
 
-- [ ] **Step 5: Run the focused wiring test and verify GREEN**
+- [x] **Step 5: Run the focused wiring test and verify GREEN**
 
 Run:
 
@@ -260,7 +260,7 @@ node --test tests/window-opening.test.mjs
 
 Expected: all six tests pass.
 
-- [ ] **Step 6: Run the core unit suite**
+- [x] **Step 6: Run the core unit suite**
 
 Run:
 
@@ -270,7 +270,7 @@ npm test
 
 Expected: all unit tests pass.
 
-- [ ] **Step 7: Commit the production wiring**
+- [x] **Step 7: Commit the production wiring**
 
 ```powershell
 git add src/main/index.js tests/window-opening.test.mjs
@@ -282,7 +282,7 @@ git commit -m "feat: center and present new feature windows"
 **Files:**
 - Modify: `scripts/window-smoke.cjs`
 
-- [ ] **Step 1: Add reusable centered-bound assertions to the smoke harness**
+- [x] **Step 1: Add reusable centered-bound assertions to the smoke harness**
 
 After `check`, add:
 
@@ -299,7 +299,7 @@ function assertCentered(window,width,height){
 }
 ```
 
-- [ ] **Step 2: Replace the obsolete ordinary-window persistence expectation**
+- [x] **Step 2: Replace the obsolete ordinary-window persistence expectation**
 
 Replace `close/reopen retains opacity and topmost` with:
 
@@ -323,7 +323,7 @@ await check('ordinary reopen keeps only size and returns centered with default a
 
 Update the restart-only branch to expect `assertCentered(restored,420,360)`, opacity `1`, and `isAlwaysOnTop() === false`. Update the managed-setting check later in the smoke to assert that the unchanged live topmost value is `false`.
 
-- [ ] **Step 3: Add one advertisement and one chat reopen case**
+- [x] **Step 3: Add one advertisement and one chat reopen case**
 
 Before the shortcut tests, add:
 
@@ -353,7 +353,7 @@ await check('chat reopen keeps only size and returns centered in the foreground'
 })
 ```
 
-- [ ] **Step 4: Build and run the real Electron smoke once**
+- [x] **Step 4: Build and run the real Electron smoke once**
 
 Run:
 
@@ -364,7 +364,7 @@ npm run test:smoke
 
 Expected: the smoke passes both its first run and restart run using isolated user data; remote requests remain blocked.
 
-- [ ] **Step 5: Commit the Electron regression coverage**
+- [x] **Step 5: Commit the Electron regression coverage**
 
 ```powershell
 git add scripts/window-smoke.cjs

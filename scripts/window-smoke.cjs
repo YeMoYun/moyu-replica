@@ -16,7 +16,23 @@ async function until(predicate, label) {
 async function evaluate(window, code) { return window.webContents.executeJavaScript(code, true) }
 function find(hash) { return BrowserWindow.getAllWindows().find((window) => window.webContents.getURL().endsWith(`#${hash}`)) }
 async function check(name, operation) { await operation(); passed++; console.log(`PASS ${name}`) }
-const watchdog = setTimeout(() => { console.error('SMOKE timeout'); app.exit(1) }, 45000)
+function activeWorkArea(){
+  const {screen}=require('electron')
+  return screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
+}
+function windowSize(window){
+  const {width,height}=window.getBounds()
+  return {width,height}
+}
+function assertCentered(window,width,height){
+  const area=activeWorkArea(),bounds=window.getBounds()
+  // Windows DPI conversion can shift frameless bounds by a few DIPs when moving between screen positions.
+  assert.ok(Math.abs(bounds.width-width)<=4,`width ${bounds.width} should retain ${width}`)
+  assert.ok(Math.abs(bounds.height-height)<=4,`height ${bounds.height} should retain ${height}`)
+  assert.ok(Math.abs(bounds.x-(area.x+Math.round((area.width-bounds.width)/2)))<=2)
+  assert.ok(Math.abs(bounds.y-(area.y+Math.round((area.height-bounds.height)/2)))<=2)
+}
+const watchdog = setTimeout(() => { console.error('SMOKE timeout'); app.exit(1) }, 60000)
 
 app.whenReady().then(async () => {
   // Block remote requests including embedded site pages, login and authorization.
@@ -28,7 +44,9 @@ app.whenReady().then(async () => {
       await evaluate(home,'window.homeElectronAPI.createWeb()')
       const restored=await until(()=>find('/web'),'restored web')
       await until(async()=>evaluate(restored,'Boolean(document.querySelector(".bar"))'),'restored renderer')
-      assert.ok(Math.abs(restored.getOpacity()-0.55)<0.03);assert.equal(restored.isAlwaysOnTop(),true)
+      const savedSize=JSON.parse(fs.readFileSync(path.join(data,'expected-web-size.json'),'utf8'))
+      assertCentered(restored,savedSize.width,savedSize.height)
+      assert.ok(Math.abs(restored.getOpacity()-1)<0.03);assert.equal(restored.isAlwaysOnTop(),false)
       const keys=await evaluate(home,'window.ipcRenderer.invoke("get-shortcuts")')
       assert.match(keys.boss,/Ctrl\+Alt\+Shift\+F\d+/)
       assert.equal(globalShortcut.isRegistered(keys.boss),true)
@@ -102,15 +120,45 @@ app.whenReady().then(async () => {
       await pause(150)
       assert.equal(await evaluate(web,'window.smokeEventCount'),count)
     })
-    await check('close/reopen retains opacity and topmost', async () => {
-      await evaluate(web,'window.windowControl.setAlwaysOnTop(true)')
+    await check('ordinary reopen keeps only size and returns centered with default appearance',async()=>{
+      const area=activeWorkArea()
+      web.setBounds({x:area.x,y:area.y,width:420,height:360})
+      const savedSize=windowSize(web)
+      fs.writeFileSync(path.join(data,'expected-web-size.json'),JSON.stringify(savedSize))
+      await evaluate(web,'(async()=>{await window.windowControl.setOpacity(.55);await window.windowControl.setAlwaysOnTop(true);await window.windowControl.setAutoHide(true)})()')
       const previous=web
-      await evaluate(web,'window.windowControl.close()').catch(error=>{ if(!/destroy|closed/i.test(error.message))throw error })
+      await evaluate(web,'window.windowControl.close()').catch(error=>{if(!/destroy|closed/i.test(error.message))throw error})
       await until(()=>previous.isDestroyed(),'web closed')
       await evaluate(home,'window.homeElectronAPI.createWeb()')
       web=await until(()=>find('/web'),'web reopened')
       await until(async()=>evaluate(web,'Boolean(document.querySelector(".bar"))'),'reopened rendered')
-      assert.ok(Math.abs(web.getOpacity()-0.55)<0.03); assert.equal(web.isAlwaysOnTop(),true)
+      assertCentered(web,savedSize.width,savedSize.height)
+      assert.ok(Math.abs(web.getOpacity()-1)<0.03)
+      assert.equal(web.isAlwaysOnTop(),false)
+      assert.equal((await evaluate(web,'window.windowControl.getState()')).autoHideEnabled,false)
+    })
+    await check('advertisement reopen keeps only size and returns centered with default appearance',async()=>{
+      await evaluate(home,"window.videoModeControl.open('douyin','ad')")
+      let ad=await until(()=>find('/douyin'),'douyin ad')
+      await until(()=>evaluate(ad,'Boolean(window.adModeControl)'),'ad preload')
+      const area=activeWorkArea();ad.setBounds({x:area.x,y:area.y,width:330,height:440});const savedSize=windowSize(ad)
+      ad.setOpacity(.4);ad.setAlwaysOnTop(true);await pause(100);const previous=ad
+      await evaluate(ad,'window.adModeControl.close()').catch(error=>{if(!/destroy|closed/i.test(error.message))throw error})
+      await until(()=>previous.isDestroyed(),'ad closed')
+      await evaluate(home,"window.videoModeControl.open('douyin','ad')")
+      ad=await until(()=>find('/douyin'),'ad reopened')
+      assertCentered(ad,savedSize.width,savedSize.height);assert.ok(Math.abs(ad.getOpacity()-1)<.03);assert.equal(ad.isAlwaysOnTop(),false)
+      ad.close();await until(()=>ad.isDestroyed(),'ad cleanup')
+    })
+    await check('chat reopen keeps only size and returns centered in the foreground',async()=>{
+      await evaluate(home,"window.videoModeControl.open('douyin','wechat')")
+      let chat=await until(()=>find('/wechat'),'wechat')
+      const area=activeWorkArea();chat.setBounds({x:area.x,y:area.y,width:720,height:560});const savedSize=windowSize(chat);chat.setOpacity(.5);chat.setAlwaysOnTop(true);await pause(100)
+      chat.close();await until(()=>chat.isDestroyed(),'chat closed')
+      await evaluate(home,"window.videoModeControl.open('douyin','wechat')")
+      chat=await until(()=>find('/wechat'),'wechat reopened')
+      assertCentered(chat,savedSize.width,savedSize.height);assert.ok(Math.abs(chat.getOpacity()-1)<.03);assert.equal(chat.isAlwaysOnTop(),false)
+      chat.close();await until(()=>chat.isDestroyed(),'chat cleanup')
     })
     await check('shortcut duplicate rejection leaves configuration unchanged', async () => {
       const before=await evaluate(home,'window.ipcRenderer.invoke("get-shortcuts")')
@@ -133,7 +181,7 @@ app.whenReady().then(async () => {
     })
     await check('generic managed-window setting cannot bypass active control', async () => {
       assert.equal(await evaluate(home,'window.settingApi.setSetting("web.alwaysOnTop",false).then(()=>false,()=>true)'),true)
-      assert.equal(web.isAlwaysOnTop(),true)
+      assert.equal(web.isAlwaysOnTop(),false)
     })
     await check('missing native alpha binding explicitly rejects', async () => {
       assert.equal(await evaluate(home,'window.alpha.lock().then(()=>false,()=>true)'),true)
