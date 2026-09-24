@@ -25,11 +25,15 @@ export function resolvePhoneMirrorExecutable({ projectRoot, override, exists = e
 }
 
 export function startPhoneMirrorTransport({ pipePath, token, onMessage }) {
+  const debug = (...values) => {
+    if (process.env.MOYU_PHONE_MIRROR_DEBUG === '1') console.log('[phone-mirror]', ...values)
+  }
   let authenticatedSocket = null
   let closed = false
   const queue = []
   const sockets = new Set()
   const server = createServer(socket => {
+    debug('pipe-client-connected')
     sockets.add(socket)
     socket.setEncoding('utf8')
     let buffered = ''
@@ -43,12 +47,14 @@ export function startPhoneMirrorTransport({ pipePath, token, onMessage }) {
         buffered = buffered.slice(newline + 1)
         const message = parsePhoneMirrorLine(line, token)
         if (!message) continue
+        debug('pipe-message', message.type)
 
         if (message.type === 'ready') {
           if (authenticatedSocket && authenticatedSocket !== socket) {
             authenticatedSocket.destroy()
           }
           authenticatedSocket = socket
+          debug('pipe-authenticated', queue.length)
           while (queue.length && socket.writable) socket.write(queue.shift())
         } else if (authenticatedSocket === socket) {
           onMessage(message.type)
@@ -71,8 +77,13 @@ export function startPhoneMirrorTransport({ pipePath, token, onMessage }) {
         send(type) {
           if (closed) return
           const payload = encodePhoneMirrorMessage(token, type)
-          if (authenticatedSocket?.writable) authenticatedSocket.write(payload)
-          else queue.push(payload)
+          if (authenticatedSocket?.writable) {
+            debug('pipe-send', type)
+            authenticatedSocket.write(payload)
+          } else {
+            debug('pipe-queue', type)
+            queue.push(payload)
+          }
         },
         close() {
           if (closed) return Promise.resolve()
@@ -163,7 +174,7 @@ export function createPhoneMirrorLauncher({
 
       const nextChild = spawnProcess(executable, [], {
         cwd: dirname(executable),
-        windowsHide: true,
+        windowsHide: false,
         stdio: 'ignore',
         env: {
           ...env,

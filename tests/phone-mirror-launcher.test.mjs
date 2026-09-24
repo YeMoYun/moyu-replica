@@ -100,6 +100,7 @@ test('second open focuses the owned child and Qt can focus the main app', async 
   receive('focus-main-app')
 
   assert.equal(spawned.length, 1)
+  assert.equal(spawned[0][2].windowsHide, false)
   assert.deepEqual(sent, ['focus-qtscrcpy-main'])
   assert.equal(mainFocuses, 1)
 

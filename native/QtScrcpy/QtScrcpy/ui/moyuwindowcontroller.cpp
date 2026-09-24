@@ -116,7 +116,7 @@ void MoyuWindowController::restoreAndPresent()
     } else {
         m_autoHideTimer->stop();
     }
-    m_window->show();
+    m_window->showNormal();
     m_window->raise();
     m_window->activateWindow();
     m_restoring = false;

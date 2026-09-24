@@ -31,6 +31,7 @@ private slots:
     void moyuIpcParsesAuthenticatedCommands();
     void moyuIpcEncodesFocusWithoutLeakingExtraFields();
     void windowStateRestoresWithoutPosition();
+    void windowRestoreLeavesMinimizedState();
 };
 
 void NativeUiTest::translator_data()
@@ -233,6 +234,19 @@ void NativeUiTest::windowStateRestoresWithoutPosition()
     QCOMPARE(qRound(window.windowOpacity() * 100.0), 65);
     QVERIFY(window.windowFlags().testFlag(Qt::WindowStaysOnTopHint));
     QCOMPARE(bar.property("lightToolbar").toBool(), true);
+}
+
+void NativeUiTest::windowRestoreLeavesMinimizedState()
+{
+    QWidget window;
+    MoyuControlBar bar(MoyuControlBar::Role::MainWindow, &window);
+    MoyuWindowController controller(&window, &bar, "restore-minimized");
+    window.setWindowState(window.windowState() | Qt::WindowMinimized);
+    QVERIFY(window.windowState().testFlag(Qt::WindowMinimized));
+
+    controller.restoreAndPresent();
+
+    QVERIFY(!window.windowState().testFlag(Qt::WindowMinimized));
 }
 
 QTEST_MAIN(NativeUiTest)
