@@ -9,3 +9,4 @@ dist-electron
 backups/
 previews/
 .worktrees/
+native/QtScrcpy/output/
