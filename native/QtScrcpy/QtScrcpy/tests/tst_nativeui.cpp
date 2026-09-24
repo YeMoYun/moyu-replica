@@ -3,6 +3,7 @@
 #include <QtTest>
 
 #include "adbresulttranslator.h"
+#include "wirelessadbcontroller.h"
 
 class NativeUiTest : public QObject
 {
@@ -12,6 +13,7 @@ private slots:
     void translator_data();
     void translator();
     void diagnosticRedactsPairingCode();
+    void wirelessValidationAndInvocations();
 };
 
 void NativeUiTest::translator_data()
@@ -71,6 +73,28 @@ void NativeUiTest::diagnosticRedactsPairingCode()
 
     QVERIFY(!diagnostic.contains("123456"));
     QVERIFY(diagnostic.contains("******"));
+}
+
+void NativeUiTest::wirelessValidationAndInvocations()
+{
+    QVERIFY(!WirelessAdbController::validatePair("", "37123", "123456").valid);
+    QVERIFY(!WirelessAdbController::validatePair("192.0.2.1", "0", "123456").valid);
+    QVERIFY(!WirelessAdbController::validatePair("192.0.2.1", "65536", "123456").valid);
+    QVERIFY(!WirelessAdbController::validatePair("192.0.2.1", "37123", "12345").valid);
+    QVERIFY(WirelessAdbController::validatePair("192.0.2.1", "37123", "123456").valid);
+    QVERIFY(WirelessAdbController::validateConnect("192.0.2.1", "37777").valid);
+
+    const auto pair = WirelessAdbController::pairInvocation(
+        "adb.exe", "192.0.2.1", "37123", "123456");
+    QCOMPARE(pair.arguments, QStringList({"pair", "192.0.2.1:37123"}));
+    QVERIFY(!pair.arguments.join(' ').contains("123456"));
+    QCOMPARE(pair.standardInput, QByteArray("123456\n"));
+
+    const auto connect = WirelessAdbController::connectInvocation(
+        "adb.exe", "192.0.2.1", "37777");
+    QCOMPARE(connect.arguments, QStringList({"connect", "192.0.2.1:37777"}));
+    QVERIFY(connect.standardInput.isEmpty());
+
 }
 
 QTEST_MAIN(NativeUiTest)

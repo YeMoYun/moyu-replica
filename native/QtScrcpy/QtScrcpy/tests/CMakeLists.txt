@@ -1,14 +1,16 @@
-find_package(Qt5 REQUIRED COMPONENTS Core Widgets Test)
+find_package(Qt5 REQUIRED COMPONENTS Core Network Widgets Test)
 
 add_executable(moyu_native_tests
     tst_nativeui.cpp
     ../ui/adbresulttranslator.cpp
     ../ui/adbresulttranslator.h
+    ../ui/wirelessadbcontroller.cpp
+    ../ui/wirelessadbcontroller.h
 )
 set_target_properties(moyu_native_tests PROPERTIES AUTOMOC ON)
 
 target_include_directories(moyu_native_tests PRIVATE ../ui)
-target_link_libraries(moyu_native_tests PRIVATE Qt5::Core Qt5::Widgets Qt5::Test)
+target_link_libraries(moyu_native_tests PRIVATE Qt5::Core Qt5::Network Qt5::Widgets Qt5::Test)
 if(MSVC)
     target_compile_options(moyu_native_tests PRIVATE /utf-8)
 endif()
