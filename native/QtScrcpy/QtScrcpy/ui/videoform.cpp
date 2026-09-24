@@ -286,12 +286,16 @@ void VideoForm::setSerial(const QString &serial)
     safeSerial.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9._-]")),
                        QStringLiteral("_"));
     m_moyuWindow->setStateKey(QStringLiteral("video/%1").arg(safeSerial));
-    m_moyuWindow->restoreAndPresent();
     auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
     m_flexDisplay = device && device->isFlexDisplay();
     if (m_flexDisplay) {
         ui->keepRatioWidget->setWidthHeightRatio(-1.0f);
     }
+}
+
+void VideoForm::restoreMoyuWindow()
+{
+    m_moyuWindow->restoreAndPresent();
 }
 
 void VideoForm::showToolForm(bool show)

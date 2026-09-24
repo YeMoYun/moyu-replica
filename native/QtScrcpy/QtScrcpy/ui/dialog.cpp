@@ -1,5 +1,6 @@
 ﻿#include <QDebug>
 #include <QAbstractItemView>
+// Modified for MoYuMaster: native wireless pairing without USB or console UI.
 #include <QCheckBox>
 #include <QFile>
 #include <QFileDialog>
@@ -7,14 +8,17 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QGuiApplication>
+#include <QHostAddress>
 #include <QKeyEvent>
 #include <QComboBox>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QSizePolicy>
 #include <QScreen>
+#include <QSettings>
 #include <QStyledItemDelegate>
 #include <QTime>
 #include <QTimer>
@@ -22,8 +26,12 @@
 
 #include "config.h"
 #include "dialog.h"
+#include "moyucontrolbar.h"
+#include "moyuwindowcontroller.h"
 #include "ui_dialog.h"
 #include "videoform.h"
+#include "wirelessadbcontroller.h"
+#include "wirelesspairdialog.h"
 #include "../groupcontroller/groupcontroller.h"
 
 #ifdef Q_OS_WIN32
@@ -33,6 +41,43 @@
 QString s_keyMapPath = "";
 
 namespace {
+bool isWirelessSerial(const QString &serial)
+{
+    const QString value = serial.trimmed();
+    const int separator = value.lastIndexOf(QLatin1Char(':'));
+    if (separator <= 0 || separator == value.size() - 1) {
+        return false;
+    }
+    QString host = value.left(separator);
+    if (host.startsWith(QLatin1Char('[')) && host.endsWith(QLatin1Char(']'))) {
+        host = host.mid(1, host.size() - 2);
+    }
+    bool portOk = false;
+    const int port = value.mid(separator + 1).toInt(&portOk);
+    QHostAddress address;
+    return portOk && port >= 1 && port <= 65535 && address.setAddress(host);
+}
+
+QString wirelessAdbPath()
+{
+    const QStringList candidates = {
+        QString::fromLocal8Bit(qgetenv("QTSCRCPY_ADB_PATH")),
+        Config::getInstance().getAdbPath(),
+#ifdef Q_OS_WIN32
+        QCoreApplication::applicationDirPath() + QStringLiteral("/adb.exe")
+#else
+        QCoreApplication::applicationDirPath() + QStringLiteral("/adb")
+#endif
+    };
+    for (const QString &candidate : candidates) {
+        const QFileInfo file(candidate);
+        if (!candidate.trimmed().isEmpty() && file.isFile()) {
+            return file.absoluteFilePath();
+        }
+    }
+    return candidates.constLast();
+}
+
 class ComboBoxItemDelegate final : public QStyledItemDelegate
 {
 public:
@@ -75,11 +120,7 @@ Dialog::Dialog(QWidget *parent) : QWidget(parent), ui(new Ui::Widget)
 #endif
 
     on_useSingleModeCheck_clicked();
-    if (QScreen *screen = QGuiApplication::primaryScreen()) {
-        const QRect availableGeometry = screen->availableGeometry();
-        move(availableGeometry.x() + (availableGeometry.width() - width()) / 2,
-             availableGeometry.y() + (availableGeometry.height() - height()) / 2);
-    }
+    m_moyuWindow->restoreAndPresent();
     on_updateDevice_clicked();
 
     connect(&m_autoUpdatetimer, &QTimer::timeout, this, &Dialog::on_updateDevice_clicked);
@@ -101,9 +142,6 @@ Dialog::Dialog(QWidget *parent) : QWidget(parent), ui(new Ui::Widget)
             break;
         case qsc::AdbProcess::AER_ERROR_EXEC:
             //log = m_adb.getErrorOut();
-            if (args.contains("ifconfig") && args.contains("wlan0")) {
-                getIPbyIp();
-            }
             break;
         case qsc::AdbProcess::AER_ERROR_MISSING_BINARY:
             log = "adb not found";
@@ -115,30 +153,19 @@ Dialog::Dialog(QWidget *parent) : QWidget(parent), ui(new Ui::Widget)
                 ui->serialBox->clear();
                 ui->connectedPhoneList->clear();
                 for (auto &item : devices) {
+                    if (!isWirelessSerial(item)) {
+                        continue;
+                    }
                     ui->serialBox->addItem(item);
                     ui->connectedPhoneList->addItem(Config::getInstance().getNickName(item) + "-" + item);
                 }
-            } else if (args.contains("show") && args.contains("wlan0")) {
-                QString ip = m_adb.getDeviceIPFromStdOut();
-                if (ip.isEmpty()) {
-                    log = "ip not find, connect to wifi?";
-                    break;
+                if (m_selectSingleWirelessAfterRefresh) {
+                    if (ui->serialBox->count() == 1) {
+                        ui->serialBox->setCurrentIndex(0);
+                        ui->connectedPhoneList->setCurrentRow(0);
+                    }
+                    m_selectSingleWirelessAfterRefresh = false;
                 }
-                ui->deviceIpEdt->setEditText(ip);
-            } else if (args.contains("ifconfig") && args.contains("wlan0")) {
-                QString ip = m_adb.getDeviceIPFromStdOut();
-                if (ip.isEmpty()) {
-                    log = "ip not find, connect to wifi?";
-                    break;
-                }
-                ui->deviceIpEdt->setEditText(ip);
-            } else if (args.contains("ip -o a")) {
-                QString ip = m_adb.getDeviceIPByIpFromStdOut();
-                if (ip.isEmpty()) {
-                    log = "ip not find, connect to wifi?";
-                    break;
-                }
-                ui->deviceIpEdt->setEditText(ip);
             }
             break;
         }
@@ -195,6 +222,50 @@ void Dialog::initUI()
     WinUtils::setDarkBorderToWindow((HWND)this->winId(), true);
 #endif
 
+    ui->wifiConnectBtn->hide();
+    ui->usbConnectBtn->hide();
+    ui->startAdbdBtn->hide();
+    ui->getIPBtn->hide();
+    ui->deviceIpEdt->hide();
+    ui->devicePortEdt->hide();
+    ui->label->hide();
+    ui->wirelessConnectBtn->setText(QStringLiteral("无线连接"));
+    ui->wirelessDisConnectBtn->setText(QStringLiteral("断开无线设备"));
+
+    const QMargins rootMargins = ui->horizontalLayout_11->contentsMargins();
+    ui->horizontalLayout_11->setContentsMargins(rootMargins.left(), 34,
+                                                rootMargins.right(), rootMargins.bottom());
+    m_moyuBar = new MoyuControlBar(MoyuControlBar::Role::MainWindow, this);
+    m_moyuBar->setGeometry(0, 0, width(), 34);
+    m_moyuBar->raise();
+    m_moyuWindow = new MoyuWindowController(this, m_moyuBar,
+                                            QStringLiteral("main"), this);
+    m_moyuWindow->setFitAction([this]() { m_moyuWindow->restoreAndPresent(); });
+    connect(m_moyuBar, &MoyuControlBar::controlRequested, this, [this]() {
+        if (!m_lastVideoForm) {
+            QMessageBox::information(this, QStringLiteral("手机投屏模式"),
+                                     QStringLiteral("请先连接并启动设备"));
+            return;
+        }
+        if (m_lastVideoForm->isMinimized()) {
+            m_lastVideoForm->showNormal();
+        }
+        m_lastVideoForm->show();
+        m_lastVideoForm->raise();
+        m_lastVideoForm->activateWindow();
+    });
+    connect(m_moyuBar, &MoyuControlBar::homeRequested,
+            this, &Dialog::focusMainAppRequested);
+    connect(m_moyuBar, &MoyuControlBar::helpRequested, this, [this]() {
+        QMessageBox::information(
+            this,
+            QStringLiteral("手机投屏操作帮助"),
+            QStringLiteral("请先在 Android 11 及以上手机中开启“无线调试”，点击“无线连接”，"
+                           "使用配对地址和 6 位配对码完成第一步，再填写无线调试主页的连接端口。\n\n"
+                           "顶部控制条可关闭、置顶、适应窗口、调透明度、移出隐藏、定位投屏窗口、"
+                           "全屏、切换外观或收起。"));
+    });
+
     ui->bitRateEdit->setValidator(new QIntValidator(1, 99999, this));
 
     ui->maxSizeBox->addItem("640");
@@ -232,25 +303,6 @@ void Dialog::initUI()
     ui->decodeModeBox->removeItem(1);
 #endif
 
-    // 加载IP历史记录
-    loadIpHistory();
-
-    // 加载端口历史记录
-    loadPortHistory();
-
-    // 为deviceIpEdt添加右键菜单
-    if (ui->deviceIpEdt->lineEdit()) {
-        ui->deviceIpEdt->lineEdit()->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(ui->deviceIpEdt->lineEdit(), &QWidget::customContextMenuRequested,
-                this, &Dialog::showIpEditMenu);
-    }
-    
-    // 为devicePortEdt添加右键菜单
-    if (ui->devicePortEdt->lineEdit()) {
-        ui->devicePortEdt->lineEdit()->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(ui->devicePortEdt->lineEdit(), &QWidget::customContextMenuRequested,
-                this, &Dialog::showPortEditMenu);
-    }
     initAdvancedDisplayUi();
 
     for (QComboBox *comboBox : findChildren<QComboBox *>()) {
@@ -441,12 +493,6 @@ void Dialog::updateBootConfig(bool toView)
             }
         }
 
-        // 保存当前IP到历史记录
-        QString currentIp = ui->deviceIpEdt->currentText().trimmed();
-        if (!currentIp.isEmpty()) {
-            saveIpHistory(currentIp);
-        }
-
         Config::getInstance().setUserBootConfig(config);
     }
 }
@@ -463,15 +509,6 @@ void Dialog::execAdbCmd()
 #else
     m_adb.execute(ui->serialBox->currentText().trimmed(), cmd.split(" ", QString::SkipEmptyParts));
 #endif
-}
-
-void Dialog::delayMs(int ms)
-{
-    QTime dieTime = QTime::currentTime().addMSecs(ms);
-
-    while (QTime::currentTime() < dieTime) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
-    }
 }
 
 QString Dialog::getGameScript(const QString &fileName)
@@ -515,6 +552,15 @@ void Dialog::closeEvent(QCloseEvent *event)
                                 3000);
     }
     event->ignore();
+}
+
+void Dialog::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    if (m_moyuBar) {
+        m_moyuBar->setGeometry(0, 0, width(), 34);
+        m_moyuBar->raise();
+    }
 }
 
 void Dialog::on_updateDevice_clicked()
@@ -836,56 +882,32 @@ void Dialog::on_stopServerBtn_clicked()
 
 void Dialog::on_wirelessConnectBtn_clicked()
 {
-    if (checkAdbRun()) {
+    if (m_wirelessDialog) {
+        m_wirelessDialog->show();
+        m_wirelessDialog->raise();
+        m_wirelessDialog->activateWindow();
         return;
     }
-    QString addr = ui->deviceIpEdt->currentText().trimmed();
-    if (addr.isEmpty()) {
-        outLog("error: device ip is null", false);
-        return;
+    if (!m_wirelessController) {
+        m_wirelessController = new WirelessAdbController(wirelessAdbPath(), this);
     }
-
-    if (!ui->devicePortEdt->currentText().isEmpty()) {
-        addr += ":";
-        addr += ui->devicePortEdt->currentText().trimmed();
-    } else if (!ui->devicePortEdt->lineEdit()->placeholderText().isEmpty()) {
-        addr += ":";
-        addr += ui->devicePortEdt->lineEdit()->placeholderText().trimmed();
-    } else {
-        outLog("error: device port is null", false);
-        return;
+    if (!m_wirelessSettings) {
+        m_wirelessSettings = new QSettings(this);
     }
-
-    // 保存IP历史记录 - 只保存IP部分,不包含端口
-    QString ip = addr.split(":").first();
-    if (!ip.isEmpty()) {
-        saveIpHistory(ip);
-    }
-    
-    // 保存端口历史记录
-    QString port = addr.split(":").last();
-    if (!port.isEmpty() && port != ip) {
-        savePortHistory(port);
-    }
-
-    outLog("wireless connect...", false);
-    QStringList adbArgs;
-    adbArgs << "connect";
-    adbArgs << addr;
-    m_adb.execute("", adbArgs);
-}
-
-void Dialog::on_startAdbdBtn_clicked()
-{
-    if (checkAdbRun()) {
-        return;
-    }
-    outLog("start devices adbd...", false);
-    // adb tcpip 5555
-    QStringList adbArgs;
-    adbArgs << "tcpip";
-    adbArgs << "5555";
-    m_adb.execute(ui->serialBox->currentText().trimmed(), adbArgs);
+    m_wirelessDialog = new WirelessPairDialog(m_wirelessController,
+                                              m_wirelessSettings,
+                                              this);
+    m_wirelessDialog->setAttribute(Qt::WA_DeleteOnClose);
+    m_moyuWindow->setInteractionSuspended(true);
+    connect(m_wirelessDialog, &QDialog::finished, this, [this]() {
+        m_moyuWindow->setInteractionSuspended(false);
+    });
+    connect(m_wirelessDialog, &WirelessPairDialog::connectionSucceeded,
+            this, [this]() {
+                m_selectSingleWirelessAfterRefresh = true;
+                on_updateDevice_clicked();
+            });
+    m_wirelessDialog->show();
 }
 
 void Dialog::outLog(const QString &log, bool newLine)
@@ -919,46 +941,6 @@ bool Dialog::checkAdbRun()
     return m_adb.isRuning();
 }
 
-void Dialog::on_getIPBtn_clicked()
-{
-    if (checkAdbRun()) {
-        return;
-    }
-
-    outLog("get ip...", false);
-    // adb -s P7C0218510000537 shell ifconfig wlan0
-    // or
-    // adb -s P7C0218510000537 shell ip -f inet addr show wlan0
-    QStringList adbArgs;
-#if 0
-    adbArgs << "shell";
-    adbArgs << "ip";
-    adbArgs << "-f";
-    adbArgs << "inet";
-    adbArgs << "addr";
-    adbArgs << "show";
-    adbArgs << "wlan0";
-#else
-    adbArgs << "shell";
-    adbArgs << "ifconfig";
-    adbArgs << "wlan0";
-#endif
-    m_adb.execute(ui->serialBox->currentText().trimmed(), adbArgs);
-}
-
-void Dialog::getIPbyIp()
-{
-    if (checkAdbRun()) {
-        return;
-    }
-
-    QStringList adbArgs;
-    adbArgs << "shell";
-    adbArgs << "ip -o a";
-
-    m_adb.execute(ui->serialBox->currentText().trimmed(), adbArgs);
-}
-
 void Dialog::onDeviceConnected(bool success, const QString &serial, const QString &deviceName, const QSize &size)
 {
     Q_UNUSED(deviceName);
@@ -988,21 +970,13 @@ void Dialog::onDeviceConnected(bool success, const QString &serial, const QStrin
     }
     videoForm->setWindowTitle(name + "-" + serial);
     videoForm->updateShowSize(size);
-
-    bool deviceVer = size.height() > size.width();
-    QRect rc = Config::getInstance().getRect(serial);
-    bool rcVer = rc.height() > rc.width();
-    // same width/height rate
-    if (rc.isValid() && (deviceVer == rcVer)) {
-        // mark: resize is for fix setGeometry magneticwidget bug
-        videoForm->resize(rc.size());
-        videoForm->setGeometry(rc);
-    }
-
-#ifdef Q_OS_WIN32
-    // windows是show太早可以看到resize的过程
-    QTimer::singleShot(200, videoForm, [videoForm](){videoForm->show();});
-#endif
+    videoForm->restoreMoyuWindow();
+    m_lastVideoForm = videoForm;
+    connect(videoForm, &QObject::destroyed, this, [this, videoForm]() {
+        if (m_lastVideoForm == videoForm) {
+            m_lastVideoForm.clear();
+        }
+    });
 
     GroupController::instance().addDevice(serial);
 }
@@ -1028,11 +1002,13 @@ void Dialog::on_wirelessDisConnectBtn_clicked()
     if (checkAdbRun()) {
         return;
     }
-    QString addr = ui->deviceIpEdt->currentText().trimmed();
+    const QString addr = ui->serialBox->currentText().trimmed();
     outLog("wireless disconnect...", false);
     QStringList adbArgs;
     adbArgs << "disconnect";
-    adbArgs << addr;
+    if (isWirelessSerial(addr)) {
+        adbArgs << addr;
+    }
     m_adb.execute("", adbArgs);
 }
 
@@ -1109,83 +1085,6 @@ void Dialog::on_recordScreenCheck_clicked(bool checked)
         qWarning() << "please select record save path!!!";
         ui->recordScreenCheck->setChecked(false);
     }
-}
-
-void Dialog::on_usbConnectBtn_clicked()
-{
-    on_stopAllServerBtn_clicked();
-    delayMs(200);
-    on_updateDevice_clicked();
-    delayMs(200);
-
-    int firstUsbDevice = findDeviceFromeSerialBox(false);
-    if (-1 == firstUsbDevice) {
-        qWarning() << "No use device is found!";
-        return;
-    }
-    ui->serialBox->setCurrentIndex(firstUsbDevice);
-
-    on_startServerBtn_clicked();
-}
-
-int Dialog::findDeviceFromeSerialBox(bool wifi)
-{
-    QString regStr = "\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\:([0-9]|[1-9]\\d|[1-9]\\d{2}|[1-9]\\d{3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5])\\b";
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-    QRegExp regIP(regStr);
-#else
-    QRegularExpression regIP(regStr);
-#endif
-    for (int i = 0; i < ui->serialBox->count(); ++i) {
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-        bool isWifi = regIP.exactMatch(ui->serialBox->itemText(i));
-#else
-        bool isWifi = regIP.match(ui->serialBox->itemText(i)).hasMatch();
-#endif
-        bool found = wifi ? isWifi : !isWifi;
-        if (found) {
-            return i;
-        }
-    }
-
-    return -1;
-}
-
-void Dialog::on_wifiConnectBtn_clicked()
-{
-    on_stopAllServerBtn_clicked();
-    delayMs(200);
-
-    on_updateDevice_clicked();
-    delayMs(200);
-
-    int firstUsbDevice = findDeviceFromeSerialBox(false);
-    if (-1 == firstUsbDevice) {
-        qWarning() << "No use device is found!";
-        return;
-    }
-    ui->serialBox->setCurrentIndex(firstUsbDevice);
-
-    on_getIPBtn_clicked();
-    delayMs(200);
-
-    on_startAdbdBtn_clicked();
-    delayMs(1000);
-
-    on_wirelessConnectBtn_clicked();
-    delayMs(2000);
-
-    on_updateDevice_clicked();
-    delayMs(200);
-
-    int firstWifiDevice = findDeviceFromeSerialBox(true);
-    if (-1 == firstWifiDevice) {
-        qWarning() << "No wifi device is found!";
-        return;
-    }
-    ui->serialBox->setCurrentIndex(firstWifiDevice);
-
-    on_startServerBtn_clicked();
 }
 
 void Dialog::on_connectedPhoneList_itemDoubleClicked(QListWidgetItem *item)
@@ -1278,88 +1177,4 @@ void Dialog::on_autoUpdatecheckBox_toggled(bool checked)
     } else {
         m_autoUpdatetimer.stop();
     }
-}
-
-void Dialog::loadIpHistory()
-{
-    QStringList ipList = Config::getInstance().getIpHistory();
-    ui->deviceIpEdt->clear();
-    ui->deviceIpEdt->addItems(ipList);
-    ui->deviceIpEdt->setContentsMargins(0, 0, 0, 0);
-
-    if (ui->deviceIpEdt->lineEdit()) {
-        ui->deviceIpEdt->lineEdit()->setMaxLength(128);
-        ui->deviceIpEdt->lineEdit()->setPlaceholderText("192.168.0.1");
-    }
-}
-
-void Dialog::saveIpHistory(const QString &ip)
-{
-    if (ip.isEmpty()) {
-        return;
-    }
-    
-    Config::getInstance().saveIpHistory(ip);
-    
-    // 更新ComboBox
-    loadIpHistory();
-    ui->deviceIpEdt->setCurrentText(ip);
-}
-
-void Dialog::showIpEditMenu(const QPoint &pos)
-{
-    QMenu *menu = ui->deviceIpEdt->lineEdit()->createStandardContextMenu();
-    menu->addSeparator();
-    
-    QAction *clearHistoryAction = new QAction(tr("Clear History"), menu);
-    connect(clearHistoryAction, &QAction::triggered, this, [this]() {
-        Config::getInstance().clearIpHistory();
-        loadIpHistory();
-    });
-    
-    menu->addAction(clearHistoryAction);
-    menu->exec(ui->deviceIpEdt->lineEdit()->mapToGlobal(pos));
-    delete menu;
-}
-
-void Dialog::loadPortHistory()
-{
-    QStringList portList = Config::getInstance().getPortHistory();
-    ui->devicePortEdt->clear();
-    ui->devicePortEdt->addItems(portList);
-    ui->devicePortEdt->setContentsMargins(0, 0, 0, 0);
-
-    if (ui->devicePortEdt->lineEdit()) {
-        ui->devicePortEdt->lineEdit()->setMaxLength(6);
-        ui->devicePortEdt->lineEdit()->setPlaceholderText("5555");
-    }
-}
-
-void Dialog::savePortHistory(const QString &port)
-{
-    if (port.isEmpty()) {
-        return;
-    }
-    
-    Config::getInstance().savePortHistory(port);
-    
-    // 更新ComboBox
-    loadPortHistory();
-    ui->devicePortEdt->setCurrentText(port);
-}
-
-void Dialog::showPortEditMenu(const QPoint &pos)
-{
-    QMenu *menu = ui->devicePortEdt->lineEdit()->createStandardContextMenu();
-    menu->addSeparator();
-    
-    QAction *clearHistoryAction = new QAction(tr("Clear History"), menu);
-    connect(clearHistoryAction, &QAction::triggered, this, [this]() {
-        Config::getInstance().clearPortHistory();
-        loadPortHistory();
-    });
-    
-    menu->addAction(clearHistoryAction);
-    menu->exec(ui->devicePortEdt->lineEdit()->mapToGlobal(pos));
-    delete menu;
 }

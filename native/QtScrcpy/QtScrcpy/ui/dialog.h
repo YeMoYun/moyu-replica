@@ -1,5 +1,6 @@
 ﻿#ifndef DIALOG_H
 #define DIALOG_H
+// Modified for MoYuMaster: native wireless pairing without USB or console UI.
 
 #include <QWidget>
 #include <QPointer>
@@ -25,6 +26,13 @@ class QLineEdit;
 class QCheckBox;
 class QGroupBox;
 class QPushButton;
+class QResizeEvent;
+class QSettings;
+class MoyuControlBar;
+class MoyuWindowController;
+class VideoForm;
+class WirelessAdbController;
+class WirelessPairDialog;
 class Dialog : public QWidget
 {
     Q_OBJECT
@@ -35,7 +43,8 @@ public:
 
     void outLog(const QString &log, bool newLine = true);
     bool filterLog(const QString &log);
-    void getIPbyIp();
+signals:
+    void focusMainAppRequested();
 
 private slots:
     void onDeviceConnected(bool success, const QString& serial, const QString& deviceName, const QSize& size);
@@ -45,8 +54,6 @@ private slots:
     void on_startServerBtn_clicked();
     void on_stopServerBtn_clicked();
     void on_wirelessConnectBtn_clicked();
-    void on_startAdbdBtn_clicked();
-    void on_getIPBtn_clicked();
     void on_wirelessDisConnectBtn_clicked();
     void on_selectRecordPathBtn_clicked();
     void on_recordPathEdt_textChanged(const QString &arg1);
@@ -57,8 +64,6 @@ private slots:
     void on_refreshGameScriptBtn_clicked();
     void on_applyScriptBtn_clicked();
     void on_recordScreenCheck_clicked(bool checked);
-    void on_usbConnectBtn_clicked();
-    void on_wifiConnectBtn_clicked();
     void on_connectedPhoneList_itemDoubleClicked(QListWidgetItem *item);
     void on_updateNameBtn_clicked();
     void on_useSingleModeCheck_clicked();
@@ -76,31 +81,21 @@ private slots:
     void on_refreshCameraBtn_clicked();
     void on_refreshAppsBtn_clicked();
 
-    void showIpEditMenu(const QPoint &pos);
-
 private:
     bool checkAdbRun();
     void initUI();
     void updateBootConfig(bool toView = true);
     void execAdbCmd();
-    void delayMs(int ms);
     QString getGameScript(const QString &fileName);
     void slotActivated(QSystemTrayIcon::ActivationReason reason);
-    int findDeviceFromeSerialBox(bool wifi);
     quint32 getBitRate();
     const QString &getServerPath();
     void updateVideoSourceUi();
     void initAdvancedDisplayUi();
     void updateAdvancedDisplayUi();
-    void loadIpHistory();
-    void saveIpHistory(const QString &ip);
-    void loadPortHistory();
-    void savePortHistory(const QString &port);
-
-    void showPortEditMenu(const QPoint &pos);
-
 protected:
     void closeEvent(QCloseEvent *event);
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     Ui::Widget *ui;
@@ -123,6 +118,13 @@ private:
     QAction *m_quit;
     AudioOutput m_audioOutput;
     QTimer m_autoUpdatetimer;
+    QPointer<WirelessAdbController> m_wirelessController;
+    QPointer<WirelessPairDialog> m_wirelessDialog;
+    QPointer<QSettings> m_wirelessSettings;
+    QPointer<MoyuControlBar> m_moyuBar;
+    QPointer<MoyuWindowController> m_moyuWindow;
+    QPointer<VideoForm> m_lastVideoForm;
+    bool m_selectSingleWirelessAfterRefresh = false;
 };
 
 #endif // DIALOG_H
