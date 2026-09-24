@@ -21,6 +21,16 @@ test('all managed route variants including ad readers have explicit sizes', () =
     assert.ok(SITE_ROUTES[key].width>0); assert.ok(SITE_ROUTES[key].height>0)
   }
 })
+test('local reader keeps its default size and has an explicit resize floor', () => {
+  assert.deepEqual(
+    [SITE_ROUTES.bookReader.width, SITE_ROUTES.bookReader.height],
+    [400, 300]
+  )
+  assert.deepEqual(
+    [SITE_ROUTES.bookReader.minWidth, SITE_ROUTES.bookReader.minHeight, SITE_ROUTES.bookReader.resizable],
+    [320, 240, true]
+  )
+})
 test('all video advertisement windows use compact always-on-top bounds',()=>{
   for(const key of ['douyin','bilibili','huya','douyu','kuaishou']){
     assert.equal(SITE_ROUTES[key].width,286)

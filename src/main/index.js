@@ -192,6 +192,9 @@ function openSite(key) {
   return openRoute(key, def.route, {
     width: def.width,
     height: def.height,
+    minWidth: def.minWidth,
+    minHeight: def.minHeight,
+    resizable: def.resizable,
     frame: def.frame ?? false,
     skipTaskbar: def.skipTaskbar ?? true,
     transparent: !!def.transparent,
@@ -381,6 +384,9 @@ async function getBookContent(filePath) {
     } catch (e) {
       return { type: 'epub', chapters: [], toc: [], error: String(e) }
     }
+  }
+  if (ext === 'epub') {
+    return { type: 'unsupported', error: '当前版本暂不支持 EPUB，请转换为 TXT、MOBI、AZW、AZW3 或 PDF 后重新导入。' }
   }
   if (ext === 'pdf') {
     return existsSync(filePath) ? { type: 'pdf', filePath } : { type: 'pdf', filePath: '', error: '文件不存在' }

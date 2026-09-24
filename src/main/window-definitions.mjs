@@ -26,7 +26,7 @@ export const SITE_ROUTES = {
   douyuOpacity: definition('/douyuOpacity',800,650,transparent),
   douyuControl: definition('/douyuControl',920,760),
   book: definition('/book',600,350,{...transparent,alwaysOnTop:true}),
-  bookReader: definition('/bookReader',400,300,{...transparent,webSecurity:false}),
+  bookReader: definition('/bookReader',400,300,{...transparent,webSecurity:false,minWidth:320,minHeight:240,resizable:true}),
   bookReaderAd: definition('/bookReaderAd',420,520,{webSecurity:false}),
   weRead: definition('/weRead',400,800,transparent),
   weReadAd: definition('/weReadAd',351,430,{alwaysOnTop:true,rightBottom:true}),
