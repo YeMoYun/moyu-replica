@@ -4,7 +4,7 @@
 
 **Goal:** Replace the post-shelf local book view with a transparent-reader-style, single-toolbar, continuously scrolling and resize-safe reading experience without changing any existing web reading mode.
 
-**Architecture:** Keep the existing `bookReader` BrowserWindow and shelf APIs. Move chapter/progress math into a pure renderer module, put the responsive toolbar in a local-reader-only component, and let `ReaderView.vue` coordinate DOM scrolling, window controls, persistence and errors. Preserve the existing IPC names and accept legacy numeric progress while writing a versioned chapter-relative progress object.
+**Architecture:** Keep the existing `bookReader` BrowserWindow and shelf APIs. Move chapter/progress math into a pure renderer module, put the responsive toolbar in a local-reader-only component, and add `LocalReaderView.vue` exclusively for `/bookReader`. Preserve the shared `ReaderView.vue` used by `/book`, `/bookReaderOpacity`, `/readView` and `/bookReaderAd`, preserve existing IPC names, and accept legacy numeric progress while writing a versioned chapter-relative progress object.
 
 **Tech Stack:** Electron 31, Vue 3 SFCs, Node.js ES modules and `node:test`, existing `windowControl`/`bookReaderAPI` preload bridges.
 
@@ -14,7 +14,8 @@
 
 - Create `src/renderer/src/features/local-reader/model.mjs`: normalize chapter data and convert between DOM scroll positions and persisted progress.
 - Create `src/renderer/src/components/LocalReaderToolbar.vue`: local-reader-only responsive single toolbar and dialogs.
-- Modify `src/renderer/src/views/ReaderView.vue`: retain the shelf, render all chapters continuously, coordinate scroll restoration and window controls.
+- Create `src/renderer/src/views/LocalReaderView.vue`: retain the shelf, render all chapters continuously, coordinate scroll restoration and window controls.
+- Modify `src/renderer/src/router/index.js`: route only `/bookReader` to `LocalReaderView.vue`; leave all other reader routes on `ReaderView.vue`.
 - Modify `src/main/index.js`: reject raw EPUB clearly instead of reading it as TXT.
 - Modify `src/main/window-definitions.mjs`: define `320 × 240` minimum local-reader size while preserving the `400 × 300` default.
 - Create `tests/local-reader-model.test.mjs`: pure behavior tests for chapter normalization and progress migration/math.
@@ -433,18 +434,20 @@ git add src/renderer/src/components/LocalReaderToolbar.vue tests/local-reader-vi
 git commit -m "feat: add responsive local reader toolbar"
 ```
 
-### Task 4: Convert `ReaderView` to continuous responsive reading
+### Task 4: Add an isolated continuous local reader route
 
 **Files:**
 - Modify: `tests/local-reader-view.test.mjs`
-- Modify: `src/renderer/src/views/ReaderView.vue`
+- Create: `src/renderer/src/views/LocalReaderView.vue`
+- Modify: `src/renderer/src/router/index.js`
 
 - [ ] **Step 1: Extend the view contract test and confirm RED**
 
 Append to `tests/local-reader-view.test.mjs`:
 
 ```js
-const reader = fs.readFileSync(new URL('../src/renderer/src/views/ReaderView.vue', import.meta.url), 'utf8')
+const reader = fs.readFileSync(new URL('../src/renderer/src/views/LocalReaderView.vue', import.meta.url), 'utf8')
+const router = fs.readFileSync(new URL('../src/renderer/src/router/index.js', import.meta.url), 'utf8')
 
 test('reader renders one continuous scroll surface and keeps the shelf separate', () => {
   assert.match(reader, /import LocalReaderToolbar/)
@@ -458,6 +461,8 @@ test('reader renders one continuous scroll surface and keeps the shelf separate'
   assert.match(reader, /min-height:\s*0/)
   assert.match(reader, /overflow-x:\s*hidden/)
   assert.match(reader, /max-width:\s*100%/)
+  assert.match(router, /path: '\/bookReader'.*LocalReaderView/)
+  assert.match(router, /path: '\/bookReaderOpacity'.*ReaderView/)
 })
 ```
 
@@ -471,7 +476,7 @@ Expected: the toolbar test stays green and the new ReaderView test FAILS because
 
 - [ ] **Step 2: Replace paged state with continuous document state**
 
-In `ReaderView.vue`, import the toolbar and model, then use these state fields:
+Create `LocalReaderView.vue`, beginning from the existing shelf markup and behavior in `ReaderView.vue`, then import the toolbar and model and use these state fields:
 
 ```js
 import { ref, reactive, nextTick, onMounted, onUnmounted } from 'vue'
@@ -500,7 +505,7 @@ Keep the current shelf `loadHistory`, `importBooks`, `removeBook` and `fmt` beha
 
 - [ ] **Step 3: Implement open, restore, navigation and throttled saving**
 
-Add these functions to `ReaderView.vue`:
+Add these functions to `LocalReaderView.vue`:
 
 ```js
 const sectionElements = () => [...(scrollSurface.value?.querySelectorAll('[data-chapter-index]') || [])]
@@ -573,7 +578,7 @@ async function changeFont(delta) {
 
 - [ ] **Step 4: Replace only the read-state template**
 
-Keep the current shelf template. Replace the `v-else` reading branch with:
+Keep the current shelf template in the new component. Use this `v-else` reading branch:
 
 ```vue
 <template v-else>
@@ -617,7 +622,7 @@ Keep the current shelf template. Replace the `v-else` reading branch with:
 
 - [ ] **Step 5: Add responsive content styles and lifecycle cleanup**
 
-Use these essential layout rules in `ReaderView.vue`:
+Use these essential layout rules in `LocalReaderView.vue`:
 
 ```css
 .reader{height:100%;min-width:0;display:flex;flex-direction:column;background:transparent;position:relative;overflow:hidden}
@@ -652,7 +657,17 @@ onUnmounted(() => {
 })
 ```
 
-- [ ] **Step 6: Run the model, view and window tests**
+- [ ] **Step 6: Route only the local shelf mode to the new component**
+
+Change only the `/bookReader` route in `src/renderer/src/router/index.js`:
+
+```js
+{ path: '/bookReader', name: 'BookReader', component: () => import('../views/LocalReaderView.vue'), meta: { mode: 'shelf' } },
+```
+
+Do not change the `/book`, `/bookReaderOpacity`, `/readView` or `/bookReaderAd` route components.
+
+- [ ] **Step 7: Run the model, view and window tests**
 
 Run:
 
@@ -662,10 +677,10 @@ node --test tests/local-reader-model.test.mjs tests/local-reader-view.test.mjs t
 
 Expected: all focused tests PASS.
 
-- [ ] **Step 7: Commit the continuous reader**
+- [ ] **Step 8: Commit the continuous reader**
 
 ```powershell
-git add src/renderer/src/views/ReaderView.vue tests/local-reader-view.test.mjs
+git add src/renderer/src/views/LocalReaderView.vue src/renderer/src/router/index.js tests/local-reader-view.test.mjs
 git commit -m "feat: add responsive continuous local reading"
 ```
 
