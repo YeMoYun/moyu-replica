@@ -1,3 +1,4 @@
+// Modified for MoYuMaster: native wireless pairing without USB or console UI.
 // #include <QDesktopWidget>
 #include <QCoreApplication>
 #include <QFileInfo>
@@ -12,6 +13,7 @@
 #include <QStyleOption>
 #include <QTimer>
 #include <QWindow>
+#include <QRegularExpression>
 #include <QtWidgets/QHBoxLayout>
 
 #if defined(Q_OS_WIN32)
@@ -23,6 +25,8 @@
 #include "qyuvopenglwidget.h"
 #include "toolform.h"
 #include "mousetap/mousetap.h"
+#include "moyucontrolbar.h"
+#include "moyuwindowcontroller.h"
 #include "ui_videoform.h"
 #include "videoform.h"
 
@@ -33,6 +37,39 @@
 VideoForm::VideoForm(bool framelessWindow, bool skin, bool showToolbar, int decodeMode, QWidget *parent) : QWidget(parent), ui(new Ui::videoForm), m_skin(skin), m_decodeMode(decodeMode)
 {
     ui->setupUi(this);
+    m_moyuBar = new MoyuControlBar(MoyuControlBar::Role::VideoWindow, this);
+    ui->verticalLayout->insertWidget(0, m_moyuBar);
+    m_moyuWindow = new MoyuWindowController(this, m_moyuBar,
+                                            QStringLiteral("video/pending"), this);
+    m_moyuWindow->setFitAction([this]() { removeBlackRect(); });
+    m_moyuWindow->setFullscreenAction([this]() { switchFullScreen(); });
+    connect(m_moyuBar, &MoyuControlBar::controlRequested,
+            this, &VideoForm::toggleOriginalToolBar);
+    connect(m_moyuBar, &MoyuControlBar::topmostToggled, this, [this](bool enabled) {
+        if (!m_toolForm) {
+            return;
+        }
+        const bool visible = m_toolForm->isVisible();
+        m_toolForm->setWindowFlag(Qt::WindowStaysOnTopHint, enabled);
+        if (visible) {
+            m_toolForm->show();
+        }
+    });
+    connect(m_moyuBar, &MoyuControlBar::homeRequested, this, [this]() {
+        auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+        if (device) {
+            device->postGoHome();
+        }
+    });
+    connect(m_moyuBar, &MoyuControlBar::helpRequested, this, [this]() {
+        QMessageBox::information(
+            this,
+            QStringLiteral("手机投屏操作帮助"),
+            QStringLiteral("顶部控制条：关闭、置顶、适应窗口、透明度、移出隐藏、"
+                           "原手机控制栏、手机主页、全屏、外观和收起。\n\n"
+                           "保留快捷键：Ctrl+F 全屏，Ctrl+W 适应窗口，Ctrl+H 手机主页，"
+                           "Ctrl+B 返回，Ctrl+↑/↓ 调节手机音量。"));
+    });
     m_flexResizeTimer.setSingleShot(true);
     m_flexResizeTimer.setInterval(300);
     connect(&m_flexResizeTimer, &QTimer::timeout, this, [this]() {
@@ -46,6 +83,7 @@ VideoForm::VideoForm(bool framelessWindow, bool skin, bool showToolbar, int deco
     updateShowSize(size());
     bool vertical = size().height() > size().width();
     this->show_toolbar = showToolbar;
+    m_originalToolVisible = showToolbar;
     if (m_skin) {
         updateStyleSheet(vertical);
     }
@@ -76,6 +114,20 @@ QWidget* VideoForm::videoWidget() const
     }
 #endif
     return m_videoWidget.data();
+}
+
+QRect VideoForm::videoRectInWindow() const
+{
+    QWidget *widget = videoWidget();
+    if (!widget) {
+        return QRect();
+    }
+    return QRect(widget->mapTo(this, QPoint(0, 0)), widget->size());
+}
+
+int VideoForm::visibleMoyuBarHeight() const
+{
+    return m_moyuBar && m_moyuBar->isVisible() ? m_moyuBar->height() : 0;
 }
 
 void VideoForm::initUI()
@@ -187,7 +239,9 @@ void VideoForm::resizeSquare()
 
 void VideoForm::removeBlackRect()
 {
-    resize(ui->keepRatioWidget->goodSize());
+    QSize targetSize = ui->keepRatioWidget->goodSize();
+    targetSize.rheight() += visibleMoyuBarHeight();
+    resize(targetSize);
 }
 
 void VideoForm::showFPS(bool show)
@@ -228,6 +282,11 @@ void VideoForm::updateRender(int width, int height, uint8_t* dataY, uint8_t* dat
 void VideoForm::setSerial(const QString &serial)
 {
     m_serial = serial;
+    QString safeSerial = serial;
+    safeSerial.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9._-]")),
+                       QStringLiteral("_"));
+    m_moyuWindow->setStateKey(QStringLiteral("video/%1").arg(safeSerial));
+    m_moyuWindow->restoreAndPresent();
     auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
     m_flexDisplay = device && device->isFlexDisplay();
     if (m_flexDisplay) {
@@ -243,6 +302,13 @@ void VideoForm::showToolForm(bool show)
     }
     m_toolForm->move(pos().x() + geometry().width(), pos().y() + 30);
     m_toolForm->setVisible(show);
+}
+
+void VideoForm::toggleOriginalToolBar()
+{
+    m_originalToolVisible = !m_originalToolVisible;
+    show_toolbar = m_originalToolVisible;
+    showToolForm(m_originalToolVisible);
 }
 
 void VideoForm::moveCenter()
@@ -536,6 +602,7 @@ void VideoForm::updateShowSize(const QSize &newSize)
             showSize.setWidth(showSize.width() + m.left() + m.right());
             showSize.setHeight(showSize.height() + m.top() + m.bottom());
         }
+        showSize.rheight() += visibleMoyuBarHeight();
 
         if (showSize != size()) {
             resize(showSize);
@@ -582,6 +649,9 @@ void VideoForm::switchFullScreen()
         if (m_skin) {
             updateStyleSheet(m_frameSize.height() > m_frameSize.width());
         }
+        if (m_moyuBarVisibleBeforeFullscreen) {
+            m_moyuBar->show();
+        }
         showToolForm(this->show_toolbar);
 #ifdef Q_OS_WIN32
         ::SetThreadExecutionState(ES_CONTINUOUS);
@@ -594,6 +664,7 @@ void VideoForm::switchFullScreen()
 
         // record current size before fullscreen, it will be used to rollback size after exit fullscreen.
         m_normalSize = size();
+        m_moyuBarVisibleBeforeFullscreen = m_moyuBar->isVisible();
 
         m_fullScreenBeforePos = pos();
         // 这种临时增加标题栏再全屏的方案会导致收不到mousemove事件，导致setmousetrack失效
@@ -602,6 +673,7 @@ void VideoForm::switchFullScreen()
         //setWindowFlags(windowFlags() & ~Qt::FramelessWindowHint);
 #endif
         showToolForm(false);
+        m_moyuBar->hide();
         if (m_skin) {
             layout()->setContentsMargins(0, 0, 0, 0);
         }
@@ -706,7 +778,7 @@ void VideoForm::mousePressEvent(QMouseEvent *event)
 #endif
 
     QWidget *vw = videoWidget();
-    if (vw && vw->geometry().contains(event->pos())) {
+    if (vw && videoRectInWindow().contains(event->pos())) {
         if (!device) {
             return;
         }
@@ -780,7 +852,7 @@ void VideoForm::mouseMoveEvent(QMouseEvent *event)
 #endif
     auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
     QWidget *vw = videoWidget();
-    if (vw && vw->geometry().contains(event->pos())) {
+    if (vw && videoRectInWindow().contains(event->pos())) {
         if (!device) {
             return;
         }
@@ -799,7 +871,7 @@ void VideoForm::mouseDoubleClickEvent(QMouseEvent *event)
 {
     auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
     QWidget *vw = videoWidget();
-    if (event->button() == Qt::LeftButton && vw && !vw->geometry().contains(event->pos())) {
+    if (event->button() == Qt::LeftButton && vw && !videoRectInWindow().contains(event->pos())) {
         if (!isMaximized()) {
             removeBlackRect();
         }
@@ -809,7 +881,7 @@ void VideoForm::mouseDoubleClickEvent(QMouseEvent *event)
         emit device->postBackOrScreenOn(event->type() == QEvent::MouseButtonPress);
     }
 
-    if (vw && vw->geometry().contains(event->pos())) {
+    if (vw && videoRectInWindow().contains(event->pos())) {
         if (!device) {
             return;
         }
@@ -834,7 +906,7 @@ void VideoForm::wheelEvent(QWheelEvent *event)
         return;
     }
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
-    if (vw->geometry().contains(event->position().toPoint())) {
+    if (videoRectInWindow().contains(event->position().toPoint())) {
         if (!device) {
             return;
         }
@@ -842,7 +914,7 @@ void VideoForm::wheelEvent(QWheelEvent *event)
         QWheelEvent wheelEvent(
             pos, event->globalPosition(), event->pixelDelta(), event->angleDelta(), event->buttons(), event->modifiers(), event->phase(), event->inverted());
 #else
-    if (vw->geometry().contains(event->pos())) {
+    if (videoRectInWindow().contains(event->pos())) {
         if (!device) {
             return;
         }
@@ -925,7 +997,7 @@ void VideoForm::resizeEvent(QResizeEvent *event)
     if (m_widthHeightRatio > 1.0f) {
         // hor
         if (curSize.height() <= goodSize.height()) {
-            setMinimumHeight(goodSize.height());
+            setMinimumHeight(goodSize.height() + visibleMoyuBarHeight());
         } else {
             setMinimumHeight(0);
         }
@@ -946,7 +1018,6 @@ void VideoForm::closeEvent(QCloseEvent *event)
     if (!device) {
         return;
     }
-    Config::getInstance().setRect(device->getSerial(), geometry());
     device->disconnectDevice();
 }
 

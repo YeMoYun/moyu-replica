@@ -1,3 +1,4 @@
+// Modified for MoYuMaster: native wireless pairing without USB or console UI.
 #ifndef VIDEOFORM_H
 #define VIDEOFORM_H
 
@@ -17,6 +18,8 @@ class FileHandler;
 class QYUVOpenGLWidget;
 class QLabel;
 class MetalVideoWidget;
+class MoyuControlBar;
+class MoyuWindowController;
 class VideoForm : public QWidget, public qsc::DeviceObserver
 {
     Q_OBJECT
@@ -34,6 +37,7 @@ public:
     void removeBlackRect();
     void showFPS(bool show);
     void switchFullScreen();
+    void toggleOriginalToolBar();
     bool isHost();
 
 private:
@@ -78,6 +82,8 @@ private:
     QWidget* videoWidget() const;
     // 是否使用 Metal 渲染路径
     bool isMetalMode() const;
+    QRect videoRectInWindow() const;
+    int visibleMoyuBarHeight() const;
 
     // ui
     Ui::videoForm *ui;
@@ -89,6 +95,8 @@ private:
     QPointer<MetalVideoWidget> m_metalWidget;
 
     QPointer<QLabel> m_fpsLabel;
+    QPointer<MoyuControlBar> m_moyuBar;
+    QPointer<MoyuWindowController> m_moyuWindow;
 
     //inside member
     QSize m_frameSize;
@@ -102,6 +110,8 @@ private:
     bool m_metalFirstFrame = true;  // Metal 首次帧标记
     bool m_flexDisplay = false;
     bool m_preventAutoResize = false;
+    bool m_originalToolVisible = true;
+    bool m_moyuBarVisibleBeforeFullscreen = true;
     QTimer m_flexResizeTimer;
     QSize m_pendingDisplaySize;
 
