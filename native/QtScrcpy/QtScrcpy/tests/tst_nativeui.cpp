@@ -145,9 +145,19 @@ void NativeUiTest::controlBarButtonsAndSignal()
     for (MoyuControlBar::Role role : {MoyuControlBar::Role::MainWindow,
                                       MoyuControlBar::Role::VideoWindow}) {
         MoyuControlBar bar(role);
+        QVERIFY2(bar.property("fontAwesomeLoaded").toBool(),
+                 "bundled FontAwesome font was not loaded");
+        const QStringList unsupportedGlyphs = {
+            QStringLiteral("◉"), QStringLiteral("⌖"), QStringLiteral("▣"),
+            QStringLiteral("◐"), QStringLiteral("⌂"), QStringLiteral("⛶"),
+            QStringLiteral("◑")
+        };
         for (const QString &name : names) {
-            QVERIFY2(bar.findChild<QToolButton *>(name.toUtf8().constData()), qPrintable(name));
+            auto *button = bar.findChild<QToolButton *>(name.toUtf8().constData());
+            QVERIFY2(button, qPrintable(name));
+            QVERIFY2(!unsupportedGlyphs.contains(button->text()), qPrintable(name));
         }
+        QCOMPARE(bar.findChild<QToolButton *>("controlButton")->text(), QStringLiteral("控"));
         QSignalSpy controlSpy(&bar, &MoyuControlBar::controlRequested);
         QTest::mouseClick(bar.findChild<QToolButton *>("controlButton"), Qt::LeftButton);
         QCOMPARE(controlSpy.count(), 1);

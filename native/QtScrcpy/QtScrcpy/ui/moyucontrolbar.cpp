@@ -4,6 +4,7 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QFontDatabase>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
@@ -18,31 +19,43 @@ MoyuControlBar::MoyuControlBar(Role role, QWidget *parent)
 {
     Q_UNUSED(m_role)
     setObjectName(QStringLiteral("moyuControlBar"));
+    const int fontId = QFontDatabase::addApplicationFont(
+        QStringLiteral(":/font/fontawesome-webfont.ttf"));
+    const QStringList fontFamilies = QFontDatabase::applicationFontFamilies(fontId);
+    if (!fontFamilies.isEmpty()) {
+        m_iconFont = QFont(fontFamilies.constFirst());
+        m_iconFont.setPixelSize(16);
+        m_iconFontLoaded = true;
+    }
+    setProperty("fontAwesomeLoaded", m_iconFontLoaded);
     setFixedHeight(34);
     setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(4, 3, 4, 3);
     layout->setSpacing(6);
 
-    auto *collapse = addButton(QStringLiteral("◉"), QStringLiteral("收起工具栏"),
-                               "collapseButton");
-    auto *close = addButton(QStringLiteral("×"), QStringLiteral("关闭窗口"),
-                            "closeButton");
-    m_topmostButton = addButton(QStringLiteral("⌖"), QStringLiteral("窗口置顶"),
-                                "topmostButton", true);
-    auto *fit = addButton(QStringLiteral("▣"), QStringLiteral("适应窗口"), "fitButton");
-    auto *opacity = addButton(QStringLiteral("◐"), QStringLiteral("调整透明度"),
-                              "opacityButton");
-    m_autoHideButton = addButton(QStringLiteral("隐"), QStringLiteral("移出后隐藏"),
-                                 "autoHideButton", true);
+    auto *collapse = addIconButton(0xf06e, QStringLiteral("收"),
+                                   QStringLiteral("收起工具栏"), "collapseButton");
+    auto *close = addIconButton(0xf00d, QStringLiteral("X"),
+                                QStringLiteral("关闭窗口"), "closeButton");
+    m_topmostButton = addIconButton(0xf08d, QStringLiteral("顶"),
+                                    QStringLiteral("窗口置顶"), "topmostButton", true);
+    auto *fit = addIconButton(0xf108, QStringLiteral("适"),
+                              QStringLiteral("适应窗口"), "fitButton");
+    auto *opacity = addIconButton(0xf042, QStringLiteral("透"),
+                                  QStringLiteral("调整透明度"), "opacityButton");
+    m_autoHideButton = addIconButton(0xf070, QStringLiteral("隐"),
+                                     QStringLiteral("移出后隐藏"), "autoHideButton", true);
     auto *control = addButton(QStringLiteral("控"), QStringLiteral("手机控制栏"),
                               "controlButton");
-    auto *home = addButton(QStringLiteral("⌂"), QStringLiteral("主页"), "homeButton");
-    auto *fullscreen = addButton(QStringLiteral("⛶"), QStringLiteral("窗口全屏"),
-                                 "fullscreenButton");
-    auto *help = addButton(QStringLiteral("?"), QStringLiteral("操作帮助"), "helpButton");
-    auto *appearance = addButton(QStringLiteral("◑"), QStringLiteral("工具栏外观"),
-                                 "appearanceButton");
+    auto *home = addIconButton(0xf015, QStringLiteral("主"),
+                               QStringLiteral("主页"), "homeButton");
+    auto *fullscreen = addIconButton(0xf065, QStringLiteral("全"),
+                                     QStringLiteral("窗口全屏"), "fullscreenButton");
+    auto *help = addIconButton(0xf059, QStringLiteral("?"),
+                               QStringLiteral("操作帮助"), "helpButton");
+    auto *appearance = addIconButton(0xf1fc, QStringLiteral("色"),
+                                     QStringLiteral("工具栏外观"), "appearanceButton");
     layout->addStretch(1);
 
     auto *opacityMenu = new QMenu(opacity);
@@ -102,18 +115,35 @@ MoyuControlBar::MoyuControlBar(Role role, QWidget *parent)
 QToolButton *MoyuControlBar::addButton(const QString &text,
                                        const QString &tooltip,
                                        const char *objectName,
-                                       bool checkable)
+                                       bool checkable,
+                                       bool useIconFont)
 {
     auto *button = new QToolButton(this);
     button->setObjectName(QString::fromLatin1(objectName));
     button->setText(text);
     button->setToolTip(tooltip);
     button->setCheckable(checkable);
+    if (useIconFont) {
+        button->setFont(m_iconFont);
+        button->setProperty("fontAwesomeIcon", true);
+    }
     button->setAutoRaise(true);
     button->setFixedSize(28, 28);
     button->setCursor(Qt::PointingHandCursor);
     layout()->addWidget(button);
     return button;
+}
+
+QToolButton *MoyuControlBar::addIconButton(uint iconCode,
+                                           const QString &fallbackText,
+                                           const QString &tooltip,
+                                           const char *objectName,
+                                           bool checkable)
+{
+    const QString text = m_iconFontLoaded
+        ? QString(QChar(static_cast<ushort>(iconCode)))
+        : fallbackText;
+    return addButton(text, tooltip, objectName, checkable, m_iconFontLoaded);
 }
 
 int MoyuControlBar::opacityPercent() const
