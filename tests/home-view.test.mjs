@@ -254,6 +254,37 @@ test('a stale rejection cannot replace the state from a newer action', async () 
   assert.doesNotMatch(wrapper.get('[role="alert"]').text(), /旧请求失败/)
 })
 
+test('phone mirroring entry uses the restricted home bridge', async () => {
+  const calls = []
+  const wrapper = await mountHome({
+    homeElectronAPI: {
+      openPhoneMirror: async () => {
+        calls.push('open')
+        return { status: 'started' }
+      }
+    }
+  })
+
+  assert.match(wrapper.text(), /游戏与投屏/)
+  await buttonWithText(wrapper, '手机投屏模式').trigger('click')
+  await flushPromises()
+  assert.deepEqual(calls, ['open'])
+})
+
+test('phone mirroring startup errors appear in the existing alert', async () => {
+  const wrapper = await mountHome({
+    homeElectronAPI: {
+      openPhoneMirror: async () => {
+        throw new Error('手机投屏组件不存在')
+      }
+    }
+  })
+
+  await buttonWithText(wrapper, '手机投屏模式').trigger('click')
+  await flushPromises()
+  assert.match(wrapper.get('[role="alert"]').text(), /手机投屏组件不存在/)
+})
+
 test('narrow layout places logout outside the centered title flow', () => {
   assert.equal(WindowCtor, Window)
   const source = readFileSync(componentPath, 'utf8')

@@ -43,9 +43,10 @@
       </section>
 
       <section class="group">
-        <h3>游戏模式</h3>
+        <h3>游戏与投屏</h3>
         <div class="grid">
           <button type="button" @click="open('standaloneGame')">单机模式</button>
+          <button type="button" @click="open('phoneMirror')">手机投屏模式</button>
         </div>
       </section>
 
@@ -183,6 +184,7 @@ function open(key) {
     customWebpage: { action: '打开自定义网站', run: () => callBridge(api, 'createCustomWebpage', '自定义网站') },
     localVideo: { action: '打开本地视频', run: () => callBridge(window.localVideoAPI, 'createLocalVideoWindow', '本地视频') },
     standaloneGame: { action: '打开单机模式', run: () => callBridge(api, 'createStandaloneGame', '单机模式') },
+    phoneMirror: { action: '打开手机投屏模式', run: () => callBridge(api, 'openPhoneMirror', '手机投屏模式') },
     excel: { action: '打开 Excel 模式', run: () => callBridge(api, 'createExcel', 'Excel 模式') },
     testPierce: { action: '打开穿透测试', run: () => callBridge(window.ipcRenderer, 'invoke', '穿透测试', 'create-test-pierce') }
   }

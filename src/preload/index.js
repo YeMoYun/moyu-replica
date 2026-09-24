@@ -155,6 +155,7 @@ contextBridge.exposeInMainWorld('homeElectronAPI', {
   createJinJiang: () => ipcRenderer.invoke('create-jinJiang'),
   createCustomWebsite: (cfg) => ipcRenderer.invoke('create-custom-website', cfg),
   createStandaloneGame: () => ipcRenderer.invoke('create-standalone-game'),
+  openPhoneMirror: () => ipcRenderer.invoke('phone-mirror:open'),
   createCustomWebpage: () => ipcRenderer.invoke('create-custom-webpage'),
   bindSoft: on('bind-soft'),
   bossAlpha: on('boss-alpha'),
