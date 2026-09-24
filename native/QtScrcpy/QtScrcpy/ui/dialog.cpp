@@ -554,6 +554,18 @@ void Dialog::closeEvent(QCloseEvent *event)
     event->ignore();
 }
 
+void Dialog::restoreAndPresent()
+{
+    if (m_moyuWindow) {
+        m_moyuWindow->restoreAndPresent();
+        return;
+    }
+    showNormal();
+    show();
+    raise();
+    activateWindow();
+}
+
 void Dialog::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);

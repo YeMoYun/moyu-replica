@@ -43,6 +43,7 @@ public:
 
     void outLog(const QString &log, bool newLine = true);
     bool filterLog(const QString &log);
+    void restoreAndPresent();
 signals:
     void focusMainAppRequested();
 

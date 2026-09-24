@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <QFile>
 #include <QPalette>
+#include <QPointer>
 #ifdef Q_OS_LINUX
 #include <QFileInfo>
 #include <QIcon>
@@ -12,9 +13,11 @@
 #include <QTcpSocket>
 #include <QTranslator>
 #include <QDateTime>
+#include <QVector>
 
 #include "config.h"
 #include "dialog.h"
+#include "moyuipcbridge.h"
 #include "mousetap/mousetap.h"
 
 static Dialog *g_mainDlg = Q_NULLPTR;
@@ -146,6 +149,39 @@ int main(int argc, char *argv[])
     qsc::AdbProcess::setAdbPath(Config::getInstance().getAdbPath());
 
     g_mainDlg = new Dialog {};
+    QPointer<MoyuIpcBridge> bridge(MoyuIpcBridge::fromEnvironment(&a));
+    QVector<QPointer<QWidget>> bossVisibleWindows;
+    if (bridge) {
+        QObject::connect(g_mainDlg, &Dialog::focusMainAppRequested,
+                         bridge, &MoyuIpcBridge::requestMainAppFocus);
+        QObject::connect(bridge, &MoyuIpcBridge::focusQtScrcpyRequested,
+                         g_mainDlg, &Dialog::restoreAndPresent);
+        QObject::connect(bridge, &MoyuIpcBridge::bossHideRequested, &a, [&]() {
+            bossVisibleWindows.clear();
+            for (QWidget *window : QApplication::topLevelWidgets()) {
+                if (window->isVisible()) {
+                    bossVisibleWindows.append(window);
+                    window->hide();
+                }
+            }
+        });
+        QObject::connect(bridge, &MoyuIpcBridge::bossShowRequested, &a, [&]() {
+            const auto saved = bossVisibleWindows;
+            bossVisibleWindows.clear();
+            for (const QPointer<QWidget> &window : saved) {
+                if (window) {
+                    window->show();
+                }
+            }
+            if (g_mainDlg && g_mainDlg->isVisible()) {
+                g_mainDlg->raise();
+                g_mainDlg->activateWindow();
+            }
+        });
+        QObject::connect(bridge, &MoyuIpcBridge::shutdownRequested,
+                         &a, &QCoreApplication::quit);
+        bridge->start();
+    }
     g_mainDlg->show();
 
     qInfo() << QObject::tr("This software is completely open source and free. Use it at your own risk. You can download it at the "
