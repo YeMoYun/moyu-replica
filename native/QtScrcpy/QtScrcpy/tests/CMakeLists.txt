@@ -12,9 +12,8 @@ add_executable(moyu_native_tests
     ../ui/moyucontrolbar.h
     ../ui/moyuwindowcontroller.cpp
     ../ui/moyuwindowcontroller.h
-    ../res/res.qrc
 )
-set_target_properties(moyu_native_tests PROPERTIES AUTOMOC ON AUTORCC ON)
+set_target_properties(moyu_native_tests PROPERTIES AUTOMOC ON)
 
 target_include_directories(moyu_native_tests PRIVATE ../ui)
 target_link_libraries(moyu_native_tests PRIVATE Qt5::Core Qt5::Network Qt5::Widgets Qt5::Test)

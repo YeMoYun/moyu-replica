@@ -145,8 +145,8 @@ void NativeUiTest::controlBarButtonsAndSignal()
     for (MoyuControlBar::Role role : {MoyuControlBar::Role::MainWindow,
                                       MoyuControlBar::Role::VideoWindow}) {
         MoyuControlBar bar(role);
-        QVERIFY2(bar.property("fontAwesomeLoaded").toBool(),
-                 "bundled FontAwesome font was not loaded");
+        QVERIFY2(bar.property("usesDirectVectorIcons").toBool(),
+                 "toolbar must paint vector icons directly");
         const QStringList unsupportedGlyphs = {
             QStringLiteral("◉"), QStringLiteral("⌖"), QStringLiteral("▣"),
             QStringLiteral("◐"), QStringLiteral("⌂"), QStringLiteral("⛶"),
@@ -156,10 +156,23 @@ void NativeUiTest::controlBarButtonsAndSignal()
             auto *button = bar.findChild<QToolButton *>(name.toUtf8().constData());
             QVERIFY2(button, qPrintable(name));
             QVERIFY2(!unsupportedGlyphs.contains(button->text()), qPrintable(name));
+            if (name != QStringLiteral("controlButton")) {
+                QVERIFY2(button->property("moyuVectorIcon").toBool(), qPrintable(name));
+                QVERIFY2(button->icon().isNull(), qPrintable(name));
+                QVERIFY2(button->text().isEmpty(), qPrintable(name));
+                QCOMPARE(button->toolButtonStyle(), Qt::ToolButtonIconOnly);
+            } else {
+                QVERIFY2(button->property("moyuDirectText").toBool(), qPrintable(name));
+                QCOMPARE(button->toolButtonStyle(), Qt::ToolButtonTextOnly);
+            }
         }
-        QCOMPARE(bar.findChild<QToolButton *>("controlButton")->text(), QStringLiteral("控"));
+        auto *controlButton = bar.findChild<QToolButton *>("controlButton");
+        QVERIFY(controlButton->text().isEmpty());
+        QCOMPARE(controlButton->accessibleName(), QString(QChar(0x63a7)));
+        QCOMPARE(controlButton->font().family(), QStringLiteral("Microsoft YaHei UI"));
+        QCOMPARE(controlButton->font().pixelSize(), 16);
         QSignalSpy controlSpy(&bar, &MoyuControlBar::controlRequested);
-        QTest::mouseClick(bar.findChild<QToolButton *>("controlButton"), Qt::LeftButton);
+        QTest::mouseClick(controlButton, Qt::LeftButton);
         QCOMPARE(controlSpy.count(), 1);
         bar.setOpacityPercent(65);
         auto *opacityLabel = bar.findChild<QLabel *>("opacityPercentLabel");

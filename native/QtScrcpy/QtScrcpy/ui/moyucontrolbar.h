@@ -1,7 +1,6 @@
 // Modified for MoYuMaster: shared native window controls.
 #pragma once
 
-#include <QFont>
 #include <QWidget>
 
 class QAction;
@@ -37,13 +36,24 @@ signals:
     void collapseRequested();
 
 private:
+    enum class IconKind {
+        Eye,
+        Close,
+        Pin,
+        Fit,
+        Picture,
+        Droplet,
+        Home,
+        Help,
+        Fullscreen,
+        Globe
+    };
+
     QToolButton *addButton(const QString &text,
                            const QString &tooltip,
                            const char *objectName,
-                           bool checkable = false,
-                           bool useIconFont = false);
-    QToolButton *addIconButton(uint iconCode,
-                               const QString &fallbackText,
+                           bool checkable = false);
+    QToolButton *addIconButton(IconKind icon,
                                const QString &tooltip,
                                const char *objectName,
                                bool checkable = false);
@@ -56,7 +66,5 @@ private:
     QAction *m_lightAction = nullptr;
     QToolButton *m_topmostButton = nullptr;
     QToolButton *m_autoHideButton = nullptr;
-    QFont m_iconFont;
-    bool m_iconFontLoaded = false;
     bool m_lightToolbar = false;
 };
