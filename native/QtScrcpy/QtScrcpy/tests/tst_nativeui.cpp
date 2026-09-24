@@ -2,8 +2,15 @@
 
 #include <QtTest>
 
+#include <QLineEdit>
+#include <QPushButton>
+#include <QSettings>
+#include <QTemporaryDir>
+#include <QToolButton>
+
 #include "adbresulttranslator.h"
 #include "wirelessadbcontroller.h"
+#include "wirelesspairdialog.h"
 
 class NativeUiTest : public QObject
 {
@@ -14,6 +21,7 @@ private slots:
     void translator();
     void diagnosticRedactsPairingCode();
     void wirelessValidationAndInvocations();
+    void wirelessPairDialogStructure();
 };
 
 void NativeUiTest::translator_data()
@@ -95,6 +103,29 @@ void NativeUiTest::wirelessValidationAndInvocations()
     QCOMPARE(connect.arguments, QStringList({"connect", "192.0.2.1:37777"}));
     QVERIFY(connect.standardInput.isEmpty());
 
+}
+
+void NativeUiTest::wirelessPairDialogStructure()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    QSettings settings(temporaryDirectory.filePath("settings.ini"), QSettings::IniFormat);
+    WirelessAdbController controller("missing-test-adb.exe");
+    WirelessPairDialog dialog(&controller, &settings);
+
+    QCOMPARE(dialog.currentStep(), WirelessPairDialog::Step::Pair);
+    QVERIFY(dialog.findChild<QLineEdit *>("pairHostEdit"));
+    QVERIFY(dialog.findChild<QLineEdit *>("pairPortEdit"));
+    auto code = dialog.findChild<QLineEdit *>("pairCodeEdit");
+    QVERIFY(code);
+    QCOMPARE(code->echoMode(), QLineEdit::Password);
+    QVERIFY(dialog.findChild<QPushButton *>("pairButton"));
+    QVERIFY(dialog.findChild<QPushButton *>("skipPairButton"));
+    QVERIFY(dialog.findChild<QLineEdit *>("connectHostEdit"));
+    QVERIFY(dialog.findChild<QLineEdit *>("connectPortEdit"));
+    QVERIFY(dialog.findChild<QPushButton *>("connectButton"));
+    QVERIFY(dialog.findChild<QPushButton *>("finishButton"));
+    QVERIFY(dialog.findChild<QToolButton *>("diagnosticToggle"));
 }
 
 QTEST_MAIN(NativeUiTest)

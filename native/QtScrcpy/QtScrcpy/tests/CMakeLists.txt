@@ -6,6 +6,8 @@ add_executable(moyu_native_tests
     ../ui/adbresulttranslator.h
     ../ui/wirelessadbcontroller.cpp
     ../ui/wirelessadbcontroller.h
+    ../ui/wirelesspairdialog.cpp
+    ../ui/wirelesspairdialog.h
 )
 set_target_properties(moyu_native_tests PROPERTIES AUTOMOC ON)
 

@@ -182,6 +182,12 @@ set(QC_UI_SOURCES
     ui/dialog.cpp
     ui/dialog.h
     ui/dialog.ui
+    ui/adbresulttranslator.h
+    ui/adbresulttranslator.cpp
+    ui/wirelessadbcontroller.h
+    ui/wirelessadbcontroller.cpp
+    ui/wirelesspairdialog.h
+    ui/wirelesspairdialog.cpp
     render/qyuvopenglwidget.h
     render/qyuvopenglwidget.cpp
 )
