@@ -10,6 +10,8 @@ add_executable(moyu_native_tests
     ../ui/wirelesspairdialog.h
     ../ui/moyucontrolbar.cpp
     ../ui/moyucontrolbar.h
+    ../ui/moyuipcbridge.cpp
+    ../ui/moyuipcbridge.h
     ../ui/moyuwindowcontroller.cpp
     ../ui/moyuwindowcontroller.h
 )

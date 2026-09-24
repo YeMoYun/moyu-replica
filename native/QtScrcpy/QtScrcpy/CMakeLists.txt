@@ -190,6 +190,8 @@ set(QC_UI_SOURCES
     ui/wirelesspairdialog.cpp
     ui/moyucontrolbar.h
     ui/moyucontrolbar.cpp
+    ui/moyuipcbridge.h
+    ui/moyuipcbridge.cpp
     ui/moyuwindowcontroller.h
     ui/moyuwindowcontroller.cpp
     render/qyuvopenglwidget.h

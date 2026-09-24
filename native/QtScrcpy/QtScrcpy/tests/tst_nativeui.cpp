@@ -14,6 +14,7 @@
 #include "wirelessadbcontroller.h"
 #include "wirelesspairdialog.h"
 #include "moyucontrolbar.h"
+#include "moyuipcbridge.h"
 #include "moyuwindowcontroller.h"
 
 class NativeUiTest : public QObject
@@ -27,6 +28,8 @@ private slots:
     void wirelessValidationAndInvocations();
     void wirelessPairDialogStructure();
     void controlBarButtonsAndSignal();
+    void moyuIpcParsesAuthenticatedCommands();
+    void moyuIpcEncodesFocusWithoutLeakingExtraFields();
     void windowStateRestoresWithoutPosition();
 };
 
@@ -179,6 +182,27 @@ void NativeUiTest::controlBarButtonsAndSignal()
         QVERIFY(opacityLabel);
         QCOMPARE(opacityLabel->text(), QString("65%"));
     }
+}
+
+void NativeUiTest::moyuIpcParsesAuthenticatedCommands()
+{
+    QCOMPARE(MoyuIpcBridge::parseMessage(
+                 QByteArrayLiteral("{\"token\":\"secret\",\"type\":\"boss-hide\"}"),
+                 QByteArrayLiteral("secret")),
+             QStringLiteral("boss-hide"));
+    QVERIFY(MoyuIpcBridge::parseMessage(
+                QByteArrayLiteral("{\"token\":\"wrong\",\"type\":\"boss-hide\"}"),
+                QByteArrayLiteral("secret")).isEmpty());
+    QVERIFY(MoyuIpcBridge::parseMessage(
+                QByteArrayLiteral("{\"token\":\"secret\",\"type\":\"unknown\"}"),
+                QByteArrayLiteral("secret")).isEmpty());
+}
+
+void NativeUiTest::moyuIpcEncodesFocusWithoutLeakingExtraFields()
+{
+    QCOMPARE(MoyuIpcBridge::encodeMessage(QByteArrayLiteral("secret"),
+                                          QStringLiteral("focus-main-app")),
+             QByteArrayLiteral("{\"token\":\"secret\",\"type\":\"focus-main-app\"}\n"));
 }
 
 void NativeUiTest::windowStateRestoresWithoutPosition()
