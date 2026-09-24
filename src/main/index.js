@@ -28,6 +28,8 @@ import { createVideoChatNotifier, createVideoChatRuntime, tryChatContext } from 
 import { createSenderWindowKeyResolver } from './sender-window-key.mjs'
 import { createRegisteredAdOpener, createVideoModeLauncher } from './video-mode-launcher.mjs'
 import { createVideoModeIpcHandlers } from './video-mode-ipc.mjs'
+import { createPhoneMirrorLauncher } from './phone-mirror-launcher.mjs'
+import { createPhoneMirrorIpcHandlers } from './phone-mirror-ipc.mjs'
 import { createScopedAdCloser, transferToTransparentGuest } from './ad-transparent-transfer.mjs'
 import { validateChatGuestAttachment } from './chat-guest-policy.mjs'
 import { validateChatUrl } from '../shared/chat-state.mjs'
@@ -67,6 +69,8 @@ let chatWindowControls = null
 let chatServices = null
 let videoChatRuntime = null
 let videoModeLauncher = null
+let phoneMirrorLauncher = null
+let phoneMirrorQuitReady = false
 let shortcutManager = null
 let shortcutStatus = { success: false, errors: [] }
 let tray = null
@@ -214,6 +218,7 @@ function toggleBossKey() {
   const hidden = windowControls.toggleBoss()
   adWindowControls.toggleBoss()
   chatWindowControls.toggleBoss()
+  phoneMirrorLauncher?.setBossHidden(hidden)
   return hidden
 }
 
@@ -433,6 +438,8 @@ function registerStyleControls(prefix, key) {
 }
 
 function registerIpc() {
+  const phoneMirrorIpc = createPhoneMirrorIpcHandlers({ keyFromSender, launcher: phoneMirrorLauncher })
+  handle('phone-mirror:open', phoneMirrorIpc.open)
   const videoModeIpc = createVideoModeIpcHandlers({ keyFromSender, launcher: videoModeLauncher })
   handle('video-mode:open', videoModeIpc.open)
   handle('video-mode:open-recent-chat', videoModeIpc.openRecentChat)
@@ -875,6 +882,10 @@ app.whenReady().then(() => {
     readRecent:skin=>settings.get(`videoModes.lastPlatform.${skin}`),
     writeRecent:(skin,platform)=>settings.set(`videoModes.lastPlatform.${skin}`,platform)
   })
+  phoneMirrorLauncher = createPhoneMirrorLauncher({
+    projectRoot: join(__dirname, '../..'),
+    focusMainApp: () => focus('main')
+  })
   registerIpc()
   mainWindow = makeWindow('main', {
     width: 1000,
@@ -890,6 +901,15 @@ app.whenReady().then(() => {
       mainWindow = makeWindow('main', { width: 1000, height: 770 })
       loadRoute(mainWindow, '/home')
     }
+  })
+})
+
+app.on('before-quit', event => {
+  if (phoneMirrorQuitReady || !phoneMirrorLauncher) return
+  event.preventDefault()
+  phoneMirrorLauncher.shutdown().finally(() => {
+    phoneMirrorQuitReady = true
+    app.quit()
   })
 })
 
