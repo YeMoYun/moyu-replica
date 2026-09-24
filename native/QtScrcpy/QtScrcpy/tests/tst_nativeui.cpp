@@ -3,14 +3,18 @@
 #include <QtTest>
 
 #include <QLineEdit>
+#include <QLabel>
 #include <QPushButton>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QToolButton>
+#include <QWidget>
 
 #include "adbresulttranslator.h"
 #include "wirelessadbcontroller.h"
 #include "wirelesspairdialog.h"
+#include "moyucontrolbar.h"
+#include "moyuwindowcontroller.h"
 
 class NativeUiTest : public QObject
 {
@@ -22,6 +26,8 @@ private slots:
     void diagnosticRedactsPairingCode();
     void wirelessValidationAndInvocations();
     void wirelessPairDialogStructure();
+    void controlBarButtonsAndSignal();
+    void windowStateRestoresWithoutPosition();
 };
 
 void NativeUiTest::translator_data()
@@ -126,6 +132,60 @@ void NativeUiTest::wirelessPairDialogStructure()
     QVERIFY(dialog.findChild<QPushButton *>("connectButton"));
     QVERIFY(dialog.findChild<QPushButton *>("finishButton"));
     QVERIFY(dialog.findChild<QToolButton *>("diagnosticToggle"));
+}
+
+void NativeUiTest::controlBarButtonsAndSignal()
+{
+    const QStringList names = {
+        "collapseButton", "closeButton", "topmostButton", "fitButton",
+        "opacityButton", "autoHideButton", "controlButton", "homeButton",
+        "fullscreenButton", "helpButton", "appearanceButton"
+    };
+
+    for (MoyuControlBar::Role role : {MoyuControlBar::Role::MainWindow,
+                                      MoyuControlBar::Role::VideoWindow}) {
+        MoyuControlBar bar(role);
+        for (const QString &name : names) {
+            QVERIFY2(bar.findChild<QToolButton *>(name.toUtf8().constData()), qPrintable(name));
+        }
+        QSignalSpy controlSpy(&bar, &MoyuControlBar::controlRequested);
+        QTest::mouseClick(bar.findChild<QToolButton *>("controlButton"), Qt::LeftButton);
+        QCOMPARE(controlSpy.count(), 1);
+        bar.setOpacityPercent(65);
+        auto *opacityLabel = bar.findChild<QLabel *>("opacityPercentLabel");
+        QVERIFY(opacityLabel);
+        QCOMPARE(opacityLabel->text(), QString("65%"));
+    }
+}
+
+void NativeUiTest::windowStateRestoresWithoutPosition()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
+                       temporaryDirectory.path());
+    QCoreApplication::setOrganizationName("MoYuMasterNativeTests");
+    QCoreApplication::setApplicationName("WindowState");
+    QSettings settings;
+    settings.setValue("moyu/windows/test-window/size", QSize(420, 300));
+    settings.setValue("moyu/windows/test-window/opacity", 0.65);
+    settings.setValue("moyu/windows/test-window/topmost", true);
+    settings.setValue("moyu/windows/test-window/autoHide", false);
+    settings.setValue("moyu/windows/test-window/lightToolbar", true);
+    settings.setValue("moyu/windows/test-window/pos", QPoint(11, 12));
+
+    QWidget window;
+    window.resize(200, 160);
+    MoyuControlBar bar(MoyuControlBar::Role::MainWindow, &window);
+    MoyuWindowController controller(&window, &bar, "test-window");
+    controller.restoreAndPresent();
+
+    QCOMPARE(window.size(), QSize(420, 300));
+    QVERIFY(window.pos() != QPoint(11, 12));
+    QCOMPARE(qRound(window.windowOpacity() * 100.0), 65);
+    QVERIFY(window.windowFlags().testFlag(Qt::WindowStaysOnTopHint));
+    QCOMPARE(bar.property("lightToolbar").toBool(), true);
 }
 
 QTEST_MAIN(NativeUiTest)

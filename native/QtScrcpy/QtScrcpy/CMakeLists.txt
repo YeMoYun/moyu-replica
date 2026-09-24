@@ -188,6 +188,10 @@ set(QC_UI_SOURCES
     ui/wirelessadbcontroller.cpp
     ui/wirelesspairdialog.h
     ui/wirelesspairdialog.cpp
+    ui/moyucontrolbar.h
+    ui/moyucontrolbar.cpp
+    ui/moyuwindowcontroller.h
+    ui/moyuwindowcontroller.cpp
     render/qyuvopenglwidget.h
     render/qyuvopenglwidget.cpp
 )

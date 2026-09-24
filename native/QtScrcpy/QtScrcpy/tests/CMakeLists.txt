@@ -8,6 +8,10 @@ add_executable(moyu_native_tests
     ../ui/wirelessadbcontroller.h
     ../ui/wirelesspairdialog.cpp
     ../ui/wirelesspairdialog.h
+    ../ui/moyucontrolbar.cpp
+    ../ui/moyucontrolbar.h
+    ../ui/moyuwindowcontroller.cpp
+    ../ui/moyuwindowcontroller.h
 )
 set_target_properties(moyu_native_tests PROPERTIES AUTOMOC ON)
 
