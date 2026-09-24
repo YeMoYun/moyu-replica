@@ -148,13 +148,18 @@ export function createPhoneMirrorLauncher({
       const nonce = randomHex()
       const token = randomHex()
       const pipePath = createPhoneMirrorPipe({ pid: process.pid, nonce })
-      transport = await startTransport({
+      const nextTransport = await startTransport({
         pipePath,
         token,
         onMessage: type => {
           if (type === 'focus-main-app') focusMainApp()
         }
       })
+      if (shuttingDown) {
+        await nextTransport.close()
+        throw new Error('摸鱼大师正在退出，无法打开手机投屏模式')
+      }
+      transport = nextTransport
 
       const nextChild = spawnProcess(executable, [], {
         cwd: dirname(executable),

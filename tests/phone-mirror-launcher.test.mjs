@@ -158,3 +158,32 @@ test('shutdown force-kills only the owned child after the grace period', async (
   assert.deepEqual(sent, ['shutdown'])
   assert.deepEqual(killed, [2718])
 })
+
+test('shutdown during transport startup prevents a late child process', async () => {
+  let resolveTransport
+  let closed = 0
+  let spawned = 0
+  const pendingTransport = new Promise(resolve => { resolveTransport = resolve })
+  const launcher = createPhoneMirrorLauncher({
+    projectRoot: 'D:\\repo',
+    env: {},
+    exists: () => true,
+    startTransport: () => pendingTransport,
+    spawnProcess: () => {
+      spawned += 1
+      throw new Error('must not spawn')
+    },
+    killTree: async () => {},
+    randomHex: () => 'nonce',
+    focusMainApp: () => {}
+  })
+
+  const opening = launcher.openOrFocus()
+  const stopping = launcher.shutdown()
+  resolveTransport({ send: () => {}, close: async () => { closed += 1 } })
+
+  await assert.rejects(opening, /正在退出/)
+  await stopping
+  assert.equal(spawned, 0)
+  assert.equal(closed, 1)
+})
