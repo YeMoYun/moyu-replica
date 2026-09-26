@@ -29,3 +29,18 @@ test('packager is pinned and generated releases stay untracked', () => {
   assert.match(packageJson.scripts['package:win'], /package-portable\.ps1/)
   assert.match(gitignore, /^release\/$/m)
 })
+
+test('Chinese guide explains extraction, wireless-only use, hashes and unsigned warnings', () => {
+  const guide = readFileSync(new URL('../build/使用说明.txt', import.meta.url), 'utf8')
+  for (const text of [
+    'Windows 10/11 64 位',
+    '完整解压',
+    '摸鱼大师.exe',
+    '无线调试',
+    '不提供 USB 模式',
+    'SHA256',
+    '未知发布者',
+    '不要关闭安全软件',
+    '退出摸鱼大师'
+  ]) assert.ok(guide.includes(text), `使用说明缺少：${text}`)
+})
