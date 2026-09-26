@@ -72,7 +72,14 @@ try {
 
   Copy-Item -LiteralPath $unpackedDir -Destination $portableDir -Recurse
   Compress-Archive -LiteralPath $portableDir -DestinationPath $zipPath -CompressionLevel Optimal
-  $hash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToUpperInvariant()
+  $sha256 = [Security.Cryptography.SHA256]::Create()
+  $zipStream = [IO.File]::OpenRead($zipPath)
+  try {
+    $hash = ([BitConverter]::ToString($sha256.ComputeHash($zipStream)) -replace '-', '').ToUpperInvariant()
+  } finally {
+    $zipStream.Dispose()
+    $sha256.Dispose()
+  }
   "$hash *$folderName.zip" | Set-Content -LiteralPath (Join-Path $releaseRoot 'SHA256SUMS.txt') -Encoding ascii
   $fileCount = @(Get-ChildItem -LiteralPath $portableDir -Recurse -File).Count
   $zipBytes = (Get-Item -LiteralPath $zipPath).Length
