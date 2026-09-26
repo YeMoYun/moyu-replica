@@ -3,6 +3,11 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
 const script = readFileSync(new URL('../scripts/package-portable.ps1', import.meta.url), 'utf8')
+const scriptBytes = readFileSync(new URL('../scripts/package-portable.ps1', import.meta.url))
+
+test('release script includes a UTF-8 BOM for Windows PowerShell 5.1', () => {
+  assert.deepEqual([...scriptBytes.subarray(0, 3)], [0xEF, 0xBB, 0xBF])
+})
 
 test('release script checks platform, clean Git state and required Qt files', () => {
   assert.match(script, /RuntimeInformation.*OSArchitecture.*X64/)
