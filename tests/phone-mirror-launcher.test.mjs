@@ -13,7 +13,7 @@ import {
   encodePhoneMirrorMessage
 } from '../src/main/phone-mirror-protocol.mjs'
 
-test('runtime override accepts a directory and default resolves the accepted artifact', () => {
+test('runtime resolution supports override, development and packaged resources', () => {
   const exists = value => value.endsWith('QtScrcpy.exe')
   assert.equal(
     resolvePhoneMirrorExecutable({ projectRoot: 'D:\\repo', override: 'D:\\runtime', exists }),
@@ -22,6 +22,15 @@ test('runtime override accepts a directory and default resolves the accepted art
   assert.equal(
     resolvePhoneMirrorExecutable({ projectRoot: 'D:\\repo', exists }),
     join('D:\\repo', '.artifacts', 'qtscrcpy-custom-runtime', 'QtScrcpy.exe')
+  )
+  assert.equal(
+    resolvePhoneMirrorExecutable({
+      projectRoot: 'D:\\repo',
+      packaged: true,
+      resourcesPath: 'D:\\portable\\resources',
+      exists
+    }),
+    join('D:\\portable\\resources', 'qtscrcpy', 'QtScrcpy.exe')
   )
 })
 
@@ -104,6 +113,38 @@ test('second open focuses the owned child and Qt can focus the main app', async 
   assert.deepEqual(sent, ['focus-qtscrcpy-main'])
   assert.equal(mainFocuses, 1)
 
+  child.exitCode = 0
+  child.emit('exit', 0)
+  await launcher.shutdown()
+})
+
+test('launcher creates and passes the QtScrcpy user-data config directory', async () => {
+  const child = new EventEmitter()
+  child.pid = 9021
+  child.exitCode = null
+  const created = []
+  let spawnOptions
+  const launcher = createPhoneMirrorLauncher({
+    projectRoot: 'D:\\repo',
+    packaged: true,
+    resourcesPath: 'D:\\portable\\resources',
+    configDirectory: 'C:\\Users\\tester\\AppData\\Roaming\\moyu\\qtscrcpy',
+    env: {},
+    exists: () => true,
+    ensureDirectory: (path, options) => created.push([path, options]),
+    startTransport: async () => ({ send() {}, close: async () => {} }),
+    spawnProcess: (_file, _args, options) => {
+      spawnOptions = options
+      queueMicrotask(() => child.emit('spawn'))
+      return child
+    },
+    killTree: async () => {},
+    randomHex: () => 'nonce',
+    focusMainApp() {}
+  })
+  await launcher.openOrFocus()
+  assert.deepEqual(created, [['C:\\Users\\tester\\AppData\\Roaming\\moyu\\qtscrcpy', { recursive: true }]])
+  assert.equal(spawnOptions.env.QTSCRCPY_CONFIG_PATH, 'C:\\Users\\tester\\AppData\\Roaming\\moyu\\qtscrcpy')
   child.exitCode = 0
   child.emit('exit', 0)
   await launcher.shutdown()

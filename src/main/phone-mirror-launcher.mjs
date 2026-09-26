@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { dirname, extname, resolve } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { spawn } from 'node:child_process'
@@ -9,12 +9,20 @@ import {
   parsePhoneMirrorLine
 } from './phone-mirror-protocol.mjs'
 
-export function resolvePhoneMirrorExecutable({ projectRoot, override, exists = existsSync }) {
+export function resolvePhoneMirrorExecutable({
+  projectRoot,
+  packaged = false,
+  resourcesPath,
+  override,
+  exists = existsSync
+}) {
   const candidate = override
     ? (extname(override).toLowerCase() === '.exe'
         ? resolve(override)
         : resolve(override, 'QtScrcpy.exe'))
-    : resolve(projectRoot, '.artifacts', 'qtscrcpy-custom-runtime', 'QtScrcpy.exe')
+    : packaged
+      ? resolve(resourcesPath, 'qtscrcpy', 'QtScrcpy.exe')
+      : resolve(projectRoot, '.artifacts', 'qtscrcpy-custom-runtime', 'QtScrcpy.exe')
 
   if (!exists(candidate)) {
     throw new Error(
@@ -125,8 +133,12 @@ function defaultKillTree(pid) {
 
 export function createPhoneMirrorLauncher({
   projectRoot,
+  packaged = false,
+  resourcesPath,
+  configDirectory,
   env = process.env,
   exists = existsSync,
+  ensureDirectory = mkdirSync,
   startTransport = startPhoneMirrorTransport,
   spawnProcess = spawn,
   killTree = defaultKillTree,
@@ -153,9 +165,12 @@ export function createPhoneMirrorLauncher({
     starting = (async () => {
       const executable = resolvePhoneMirrorExecutable({
         projectRoot,
+        packaged,
+        resourcesPath,
         override: env.MOYU_QTSCRCPY_RUNTIME,
         exists
       })
+      if (configDirectory) ensureDirectory(configDirectory, { recursive: true })
       const nonce = randomHex()
       const token = randomHex()
       const pipePath = createPhoneMirrorPipe({ pid: process.pid, nonce })
@@ -178,6 +193,7 @@ export function createPhoneMirrorLauncher({
         stdio: 'ignore',
         env: {
           ...env,
+          ...(configDirectory ? { QTSCRCPY_CONFIG_PATH: configDirectory } : {}),
           MOYU_IPC_PIPE: pipePath,
           MOYU_IPC_TOKEN: token,
           MOYU_PARENT_PID: String(process.pid)

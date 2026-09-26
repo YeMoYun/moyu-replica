@@ -861,6 +861,10 @@ function createTray() {
 }
 
 // ── 生命周期 ────────────────────────────────────────────────────────────
+if (process.env.MOYU_SMOKE_DATA_DIR) {
+  app.setPath('userData', process.env.MOYU_SMOKE_DATA_DIR)
+}
+
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.xueqiu.MoYuMaster')
   app.on('browser-window-created', (_e, window) => optimizer.watchWindowShortcuts(window))
@@ -890,6 +894,9 @@ app.whenReady().then(() => {
   })
   phoneMirrorLauncher = createPhoneMirrorLauncher({
     projectRoot: join(__dirname, '../..'),
+    packaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    configDirectory: join(app.getPath('userData'), 'qtscrcpy'),
     focusMainApp: () => focus('main')
   })
   registerIpc()
@@ -901,6 +908,10 @@ app.whenReady().then(() => {
   loadRoute(mainWindow, '/home')
   initializeShortcuts()
   createTray()
+
+  if (process.env.MOYU_RELEASE_SMOKE === '1') {
+    setTimeout(() => app.quit(), 2000)
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
