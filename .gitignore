@@ -10,3 +10,4 @@ backups/
 previews/
 .worktrees/
 native/QtScrcpy/output/
+release/

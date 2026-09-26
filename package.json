@@ -18,7 +18,10 @@
     "test:reading-sites": "node scripts/run-reading-sites-smoke.mjs",
     "test:ad-modes": "node scripts/run-ad-modes-smoke.mjs",
     "test:video-chat-matrix": "node scripts/run-video-chat-matrix-smoke.mjs",
-    "test:phone-mirror": "node scripts/run-phone-mirror-integration-smoke.mjs"
+    "test:phone-mirror": "node scripts/run-phone-mirror-integration-smoke.mjs",
+    "test:packaging": "node --test tests/packaging-*.test.mjs tests/portable-smoke-script.test.mjs tests/phone-mirror-launcher.test.mjs",
+    "package:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1",
+    "test:portable": "node scripts/run-portable-smoke.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -38,6 +41,7 @@
     "@vue/compiler-sfc": "3.5.42",
     "@vue/test-utils": "^2.5.1",
     "electron": "^31.0.0",
+    "electron-builder": "26.15.3",
     "electron-vite": "^2.3.0",
     "happy-dom": "^20.14.5",
     "vite": "^5.3.1"
