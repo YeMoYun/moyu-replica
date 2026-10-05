@@ -5,6 +5,10 @@ const { createWindowController, fitBounds } = await import('../src/main/window-c
   if (e.code === 'ERR_MODULE_NOT_FOUND') return {}
   throw e
 })
+const { createLiveResizeTracker } = await import('../src/main/window-live-resize.mjs').catch((e) => {
+  if (e.code === 'ERR_MODULE_NOT_FOUND') return {}
+  throw e
+})
 class WindowBoundary extends EventEmitter {
   opacity = 1; top = false; fullscreen = false; visible = true; ignored = false
   bounds = { x: 10, y: 10, width: 400, height: 300 }
@@ -33,7 +37,7 @@ function fixture() {
   let cursor = { x: 20, y: 20 }; let tick
   let displays = [{workArea:{x:0,y:0,width:1920,height:1080}}]
   const screen = Object.assign(new EventEmitter(), { getCursorScreenPoint: () => cursor, getAllDisplays: () => displays })
-  const control = createWindowController({ windows, store, screen, setInterval: (cb) => { tick = cb; return 1 }, clearInterval: () => {} })
+  const control = createWindowController({ windows, store, screen, liveResize: createLiveResizeTracker({ screen }), setInterval: (cb) => { tick = cb; return 1 }, clearInterval: () => {} })
   control.attach('web', windows.get('web'))
   return { control, windows, store, screen, displays: (value) => { displays=value }, tick: () => tick?.(), cursor: (v) => { cursor=v } }
 }

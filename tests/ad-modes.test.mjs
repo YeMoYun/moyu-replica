@@ -71,6 +71,20 @@ test('ad boss strategy covers in place, restores, cleans closed windows and igno
   control.toggleBoss();assert.equal(control.state('weReadAd').covered,true)
   assert.ok([...values.keys()].every(k=>k.startsWith('adModes.')))
 })
+test('ad windows stream cursor-glued live resize and persist once at drag end',async()=>{
+  const {createAdWindowController}=await import('../src/main/ad-window-controls.mjs')
+  const {createLiveResizeTracker}=await import('../src/main/window-live-resize.mjs')
+  const values=new Map(),store={get:k=>values.get(k),set:(k,v)=>values.set(k,v)}
+  const tracker=createLiveResizeTracker({screen:{getAllDisplays:()=>[{workArea:{x:0,y:0,width:1600,height:1000}}]}})
+  const control=createAdWindowController({store,screen:{getPrimaryDisplay:()=>({workArea:{x:0,y:0,width:1600,height:1000}})},liveResize:tracker})
+  const video=nativeWindow();control.attach('douyin',video)
+  control.beginLiveResize('douyin',{h:1,v:1},{x:296,y:440})
+  control.moveLiveResize('douyin',{x:236,y:400})
+  assert.deepEqual(video.bounds,{x:10,y:20,width:226,height:380},'edges glued to the cursor; left and top pinned')
+  assert.equal(values.get('adModes.douyin.window'),undefined,'no config writes during the drag')
+  control.endLiveResize('douyin')
+  assert.deepEqual(values.get('adModes.douyin.window').bounds,video.bounds,'end of drag persists once')
+})
 test('ad page controller isolates persistence, pauses covered reading and invalidates stale navigation',async()=>{
   const {createAdPageController}=await import('../src/renderer/src/features/ad-modes/controller.mjs')
   const values=new Map(),scripts=[];let resolveScript,block=false

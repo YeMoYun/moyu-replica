@@ -21,15 +21,23 @@ test('all managed route variants including ad readers have explicit sizes', () =
     assert.ok(SITE_ROUTES[key].width>0); assert.ok(SITE_ROUTES[key].height>0)
   }
 })
-test('local reader keeps its default size and has an explicit resize floor', () => {
+test('local reader follows the unified transparent resize rule', () => {
   assert.deepEqual(
     [SITE_ROUTES.bookReader.width, SITE_ROUTES.bookReader.height],
     [400, 300]
   )
-  assert.deepEqual(
-    [SITE_ROUTES.bookReader.minWidth, SITE_ROUTES.bookReader.minHeight, SITE_ROUTES.bookReader.resizable],
-    [320, 240, true]
-  )
+  assert.equal(SITE_ROUTES.bookReader.resizable, false)
+  assert.equal(SITE_ROUTES.bookReader.transparent, true)
+})
+test('every transparent window disables native resize so renderer handles own the edge', () => {
+  assert.ok(SITE_ROUTES)
+  const transparentKeys = Object.entries(SITE_ROUTES)
+    .filter(([, def]) => def.transparent)
+    .map(([key]) => key)
+  assert.ok(transparentKeys.length >= 20, 'transparent feature windows must exist')
+  for (const key of transparentKeys) {
+    assert.equal(SITE_ROUTES[key].resizable, false, `${key} must not rely on enlarge-only native resize`)
+  }
 })
 test('WeRead resizes through renderer handles with native zones disabled and pins by default', () => {
   assert.deepEqual(

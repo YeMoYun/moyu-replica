@@ -1,5 +1,5 @@
 <template>
-  <div class="weread-window" ref="root">
+  <div class="weread-window">
     <svg class="icon-definitions" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <symbol id="wr-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
@@ -68,9 +68,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { createWeReadState, createWeReadController, WEREAD_HOME } from '../features/weread/controller.mjs'
-import { createResizeSession, mountResizeHandles } from '../features/window-resize/resize-handles.mjs'
 
-const wv=ref(null), root=ref(null), showBar=ref(true), showMore=ref(false), dialog=ref(''), error=ref('')
+const wv=ref(null), showBar=ref(true), showMore=ref(false), dialog=ref(''), error=ref('')
 const initialized=ref(false), initialAddress=ref(WEREAD_HOME), pending=ref(0)
 const busy=computed(()=>pending.value>0)
 const nativeState=reactive({opacity:1,alwaysOnTop:false,autoHideEnabled:false,hidden:false})
@@ -102,15 +101,9 @@ function inPageNavigation(){return perform(()=>page.domReady({newDocument:false}
 function goHome(){showMore.value=false;return perform(()=>{if(!wv.value)throw new Error('网页尚未准备好');return wv.value.loadURL(WEREAD_HOME)})}
 function loadFailed(event){if(event.errorCode!==-3&&event.isMainFrame!==false)error.value=`微信读书页面加载失败：${event.errorDescription||event.errorCode}。请检查网络后重新打开。`}
 function keydown(event){if(event.key==='Escape')dialog.value?dialog.value='':showMore.value=false}
-let disposeResizeHandles=null
 onMounted(async()=>{
   window.addEventListener('keydown',keydown)
   if(!control||!window.settingApi||!window.ipcRenderer){error.value='微信读书控制桥不可用，请通过 Electron 启动';return}
-  disposeResizeHandles=mountResizeHandles({host:root.value,session:createResizeSession({
-    begin:(directions,cursor)=>{control.setLiveResizeBegin(directions,cursor).catch(()=>{})},
-    apply:cursor=>{control.setLiveResize(cursor).catch(()=>{})},
-    commit:()=>{control.setLiveResizeEnd().catch(()=>{})}
-  })})
   subscriptions.push(control.onState(receiveState),control.onError(message=>{error.value=message}),
     window.ipcRenderer.on('stop-or-continue',()=>perform(()=>page.setAutoScroll(!pageState.autoScrollEnabled))))
   await perform(async()=>{
@@ -124,7 +117,6 @@ onMounted(async()=>{
 })
 onUnmounted(()=>{
   unmounted=true;window.removeEventListener('keydown',keydown)
-  disposeResizeHandles?.()
   for(const unsubscribe of subscriptions)unsubscribe()
   page.dispose().catch(failure=>console.error('微信读书资源清理失败',failure))
 })

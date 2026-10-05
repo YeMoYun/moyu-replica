@@ -44,7 +44,7 @@ app.whenReady().then(async()=>{
       await evalHost(w,"document.querySelector('[data-zoom=\"0.4\"]').click()");await ready()
       await evalHost(w,"document.querySelector('.dialog-close').click()")
       await g.executeJavaScript("document.querySelector('.player-fullscreen-btn').click()");await until(fits,'manual zoom fit')
-      w.setSize(540,420);await until(fits,'resize fit');assert.ok(Math.abs(g.getZoomFactor()-.4)<.01)
+      w.setBounds({...w.getBounds(),width:540,height:420});await until(fits,'resize fit');assert.ok(Math.abs(g.getZoomFactor()-.4)<.01)
     })
     await check('video continues and refresh resets layout without duplicated captured handlers',async()=>{
       assert.equal(await g.executeJavaScript('document.querySelector("video").paused'),false)

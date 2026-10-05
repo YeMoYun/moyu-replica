@@ -91,15 +91,22 @@ app.whenReady().then(async () => {
       await openOpacityFromChooser(home,p)
       let window = await until(() => find(`/${key}`), key), guest = await loadFixture(window, p.site)
       if (process.argv.includes('--restore-only')) {
-        await check(`${prefix} process restart restores independent native state and bounds`, async () => {
-          assert.ok(Math.abs(window.getOpacity() - p.opacity) < .03); assert.equal(window.isAlwaysOnTop(), p.topmost)
-          // Compare against the actual pre-close OS geometry, not requested DIP
-          // sizes: Windows may round dimensions under display scaling.
-          assertRestoredBounds(window, snapshots[p.site])
+        await check(`${prefix} process restart keeps saved size and resets native appearance`, async () => {
+          // Unified new-window rule: opacity/topmost reset to defaults, only the
+          // saved width/height is inherited (position is re-centered).
+          assert.ok(Math.abs(window.getOpacity() - 1) < .001); assert.equal(window.isAlwaysOnTop(), false)
+          const restored = window.getBounds()
+          // 保存/恢复/居中会经历多轮 DIP↔物理像素取整（1.25 缩放），允许少量漂移；
+          // 语义是继承保存的尺寸而不是窗口默认尺寸。
+          assert.ok(Math.abs(restored.width - snapshots[p.site].width) <= 6, `saved width is inherited: ${JSON.stringify({restored, expected: snapshots[p.site]})}`)
+          assert.ok(Math.abs(restored.height - snapshots[p.site].height) <= 6, 'saved height is inherited')
         })
         await check(`${prefix} process restart restores independent manual zoom`, async () => {
-          assert.ok(Math.abs(guest.getZoomFactor() - p.zoom) < .01)
-          assert.equal(await evaluate(window, `window.settingApi.getSetting('${key}.autoFit')`), false)
+          const restored = window.getBounds()
+          const fittedZoom = Math.round(Math.min(1, Math.max(.2, Math.min(restored.width / 1280, restored.height / 720))) * 100) / 100
+          const expectedZoom = p.site === 'huya' ? fittedZoom : p.zoom
+          assert.ok(Math.abs(guest.getZoomFactor() - expectedZoom) < .02, `zoom restored: ${guest.getZoomFactor()} vs ${expectedZoom}`)
+          assert.equal(await evaluate(window, `window.settingApi.getSetting('${key}.autoFit')`), p.site === 'huya')
         })
         await click(window, 'close').catch(error => { if (!/destroy|closed/i.test(error.message)) throw error })
         continue
@@ -133,7 +140,7 @@ app.whenReady().then(async () => {
         assert.equal(await evaluate(window, 'document.activeElement.dataset.action'), 'help')
       })
       await check(`${prefix} native resize fits actual guest and internal scroll remains functional`, async () => {
-        window.setSize(700, 600); await until(() => Math.abs(guest.getZoomFactor() - .55) < .01, 'fit')
+        window.setBounds({ ...window.getBounds(), width: 700, height: 600 }); await until(() => Math.abs(guest.getZoomFactor() - .55) < .01, 'fit')
         assert.equal(await guest.executeJavaScript("getComputedStyle(document.querySelector('.feed')).overflowY"), 'auto')
         await guest.executeJavaScript("document.querySelector('.feed').scrollTop=100")
         assert.ok(Math.abs(await guest.executeJavaScript("document.querySelector('.feed').scrollTop") - 100) < 2)
@@ -141,7 +148,10 @@ app.whenReady().then(async () => {
       await check(`${prefix} presets are manual, restore fits, and refresh preserves final selection`, async () => {
         await click(window, 'zoom'); await until(() => evaluate(window, "Boolean(document.querySelector('[data-zoom]'))"), 'zoom')
         await evaluate(window, "document.querySelector('[data-zoom=\"0.75\"]').click()"); await ready(window)
-        window.setSize(500, 450); await pause(250); assert.ok(Math.abs(guest.getZoomFactor() - .75) < .01)
+        window.setBounds({ ...window.getBounds(), width: 500, height: 450 }); await pause(250)
+        // huya 窗口填充模式在任何尺寸变化后都重新适配；其余平台手动缩放优先。
+        if (p.site === 'huya') assert.ok(Math.abs(guest.getZoomFactor() - .39) < .02, 'huya refits on resize')
+        else assert.ok(Math.abs(guest.getZoomFactor() - .75) < .01, 'manual zoom survives resize')
         await click(window, 'auto-fit'); await ready(window); assert.ok(Math.abs(guest.getZoomFactor() - .39) < .01)
         await evaluate(window, `document.querySelector('[data-zoom="${p.zoom}"]').click()`); await ready(window)
         await screenshot(window, `${prefix}-zoom.png`); await closeDialog(window)
@@ -216,9 +226,14 @@ app.whenReady().then(async () => {
         await click(window, 'close').catch(error => { if (!/destroy|closed/i.test(error.message)) throw error }); await until(() => old.isDestroyed(), 'closed')
         assert.deepEqual(await evaluate(home, `window.settingApi.getSetting('windowState.${key}.bounds')`), snapshots[p.site])
         await openOpacityFromChooser(home,p); window = await until(() => find(`/${key}`), 'reopened'); guest = await loadFixture(window, p.site)
-        assert.ok(Math.abs(window.getOpacity() - p.opacity) < .03); assert.equal(window.isAlwaysOnTop(), p.topmost)
-        assertRestoredBounds(window, snapshots[p.site])
-        assert.ok(Math.abs(guest.getZoomFactor() - p.zoom) < .01)
+        assert.ok(Math.abs(window.getOpacity() - 1) < .001); assert.equal(window.isAlwaysOnTop(), false)
+        const restored = window.getBounds()
+        assert.ok(Math.abs(restored.width - snapshots[p.site].width) <= 6, 'saved width is inherited')
+        assert.ok(Math.abs(restored.height - snapshots[p.site].height) <= 6, 'saved height is inherited')
+        // huya 窗口填充模式重开后按恢复尺寸重新适配；其余平台恢复手动缩放。
+        const fittedZoom = Math.round(Math.min(1, Math.max(.2, Math.min(restored.width / 1280, restored.height / 720))) * 100) / 100
+        const expectedZoom = p.site === 'huya' ? fittedZoom : p.zoom
+        assert.ok(Math.abs(guest.getZoomFactor() - expectedZoom) < .02, `zoom restored: ${guest.getZoomFactor()} vs ${expectedZoom}`)
         window.webContents.send('all-next'); await until(() => guest.executeJavaScript("document.body.dataset.next==='1'"), 'single next')
         await click(window, 'close').catch(error => { if (!/destroy|closed/i.test(error.message)) throw error }); await until(() => window.isDestroyed(), 'closed again')
       })

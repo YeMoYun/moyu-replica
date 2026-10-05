@@ -28,7 +28,8 @@ app.whenReady().then(async()=>{
     await evaluate(home,'window.homeElectronAPI.createDouyinOpacity()')
     let window=await until(()=>find('/douyinOpacity'),'opacity window'),guest=await loadFixture(window)
     if(process.argv.includes('--restore-only')){
-      assert.ok(Math.abs(window.getOpacity()-.33)<.03);assert.equal(window.isAlwaysOnTop(),true)
+      // 2026-09-23 统一规则：跨进程重开外观重置（不透明、非置顶），内容设置保留。
+      assert.ok(Math.abs(window.getOpacity()-1)<.001);assert.equal(window.isAlwaysOnTop(),false)
       assert.ok(Math.abs(guest.getZoomFactor()-.75)<.01)
       assert.equal(await evaluate(window,"window.settingApi.getSetting('douyinOpacity.autoFit')"),false)
       console.log('DOUYIN_RESTART_RESULT {"passed":3,"failed":0}')
@@ -64,7 +65,7 @@ app.whenReady().then(async()=>{
       assert.equal(await evaluate(window,"document.activeElement.dataset.action"),'help')
     })
     await check('real guest zoom changes with native resize and preserves internal scroll',async()=>{
-      window.setSize(700,600);await until(()=>Math.abs(guest.getZoomFactor()-.55)<.01,'resize fit')
+      window.setBounds({...window.getBounds(),width:700,height:600});await until(()=>Math.abs(guest.getZoomFactor()-.55)<.01,'resize fit')
       assert.equal(await guest.executeJavaScript("getComputedStyle(document.querySelector('.feed')).overflowY"),'auto')
       await guest.executeJavaScript("document.querySelector('.feed').scrollTop=100")
       // Chromium quantizes scroll offsets to physical pixels at fractional zoom.
@@ -75,7 +76,7 @@ app.whenReady().then(async()=>{
       await click(window,'zoom');await until(()=>evaluate(window,"Boolean(document.querySelector('[data-zoom]'))"),'zoom dialog')
       await evaluate(window,"document.querySelector('[data-zoom=\"0.75\"]').click()");await ready(window)
       assert.ok(Math.abs(guest.getZoomFactor()-.75)<.01)
-      window.setSize(500,450);await pause(250);assert.ok(Math.abs(guest.getZoomFactor()-.75)<.01)
+      window.setBounds({...window.getBounds(),width:500,height:450});await pause(250);assert.ok(Math.abs(guest.getZoomFactor()-.75)<.01)
       await click(window,'auto-fit');await ready(window);assert.ok(Math.abs(guest.getZoomFactor()-.39)<.01)
       await evaluate(window,"document.querySelector('[data-zoom=\"0.75\"]').click()");await ready(window)
       await screenshot(window,'douyin-zoom-dialog.png');await evaluate(window,"document.querySelector('.dialog-close').click()")
@@ -126,7 +127,8 @@ app.whenReady().then(async()=>{
     await check('close reopen restores settings with no duplicate event subscriptions',async()=>{
       const old=window;await click(window,'close').catch(error=>{if(!/destroy|closed/i.test(error.message))throw error});await until(()=>old.isDestroyed(),'closed')
       await evaluate(home,'window.homeElectronAPI.createDouyinOpacity()');window=await until(()=>find('/douyinOpacity'),'reopen');guest=await loadFixture(window)
-      assert.ok(Math.abs(window.getOpacity()-.33)<.03);assert.equal(window.isAlwaysOnTop(),true);assert.ok(Math.abs(guest.getZoomFactor()-.75)<.01)
+      // 2026-09-23 统一规则：重开后外观重置（不透明、非置顶），内容类设置（缩放）保留。
+      assert.ok(Math.abs(window.getOpacity()-1)<.001);assert.equal(window.isAlwaysOnTop(),false);assert.ok(Math.abs(guest.getZoomFactor()-.75)<.01)
       window.webContents.send('all-next');await until(()=>guest.executeJavaScript("document.body.dataset.next==='1'"),'single next after reopen')
     })
     console.log(`DOUYIN_RESULT ${JSON.stringify({passed,failed:0,isolatedData:true,remoteRequestsBlocked:true,onlineSiteVerified:false,physicalKeyboardVerified:false})}`)

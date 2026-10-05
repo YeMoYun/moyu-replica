@@ -2,9 +2,6 @@
 // screen-saver 层级，窗口与任务栏重叠时才能显示在任务栏上方。
 const TOPMOST_LEVEL = 'screen-saver'
 
-// 实时缩放的宽度/高度下限，仅防止拖成退化窗口；不作为可用性限制。
-const RESIZE_FLOOR = 60
-
 const opacityValue = (value) => {
   const number = Number(value)
   if (!Number.isFinite(number)) throw new Error('透明度必须是有效数值')
@@ -26,7 +23,7 @@ export function fitBounds(bounds, displays) {
   }
 }
 
-export function createWindowController({ windows, store, screen, setInterval: start = setInterval, clearInterval: stop = clearInterval }) {
+export function createWindowController({ windows, store, screen, liveResize, setInterval: start = setInterval, clearInterval: stop = clearInterval }) {
   const states = new Map()
   let timer = null
   let bossHidden = false
@@ -198,72 +195,27 @@ export function createWindowController({ windows, store, screen, setInterval: st
     updateTimer(); render(key)
     return state(key)
   }
-  // 渲染层缩放手柄：边缘吸附光标。按下时快照边界与光标位置，拖动中渲染层只
-  // 上报光标绝对坐标（DIP），主进程把被抓边缘直接放到光标处——边缘与鼠标严格
-  // 贴合、1:1 跟随；不做工作区复位，未涉及的边保持固定。下限仅防退化窗口。
+  // 渲染层缩放手柄：委托共享的实时缩放状态机（边缘吸附光标、对边固定、
+  // 不做工作区复位）；本控制器只负责拖动期间跳过持久化、结束后写入一次。
   function beginLiveResize(key, directions, cursor) {
     const record = recordFor(key)
     const window = windowFor(key)
     if (record.fullscreen || window.isFullScreen()) return false
-    const bounds = window.getBounds()
-    record.liveResize = {
-      h: directions?.h === 1 ? 1 : directions?.h === -1 ? -1 : 0,
-      v: directions?.v === 1 ? 1 : directions?.v === -1 ? -1 : 0,
-      left: bounds.x, top: bounds.y,
-      right: bounds.x + bounds.width, bottom: bounds.y + bounds.height,
-      cursorX: Number(cursor?.x), cursorY: Number(cursor?.y)
-    }
-    record.liveResizing = true
-    return true
+    record.liveResizing = liveResize.begin(window, directions, cursor)
+    return record.liveResizing
   }
   function moveLiveResize(key, cursor) {
     const record = recordFor(key)
     const window = windowFor(key)
-    const drag = record.liveResize
-    if (!drag || record.fullscreen || window.isFullScreen()) return window.getBounds()
-    const cursorX = Number(cursor?.x)
-    const cursorY = Number(cursor?.y)
-    const next = { x: drag.left, y: drag.top, width: drag.right - drag.left, height: drag.bottom - drag.top }
-    if (drag.h === 1 && Number.isFinite(cursorX)) next.width = cursorX - drag.left
-    if (drag.h === -1 && Number.isFinite(cursorX)) { next.x = cursorX; next.width = drag.right - cursorX }
-    if (drag.v === 1 && Number.isFinite(cursorY)) next.height = cursorY - drag.top
-    if (drag.v === -1 && Number.isFinite(cursorY)) { next.y = cursorY; next.height = drag.bottom - cursorY }
-    if (next.width < RESIZE_FLOOR) {
-      next.width = RESIZE_FLOOR
-      if (drag.h === -1) next.x = drag.right - RESIZE_FLOOR
-    }
-    if (next.height < RESIZE_FLOOR) {
-      next.height = RESIZE_FLOOR
-      if (drag.v === -1) next.y = drag.bottom - RESIZE_FLOOR
-    }
-    const area = screen.getDisplayMatching?.(window.getBounds())?.workArea ?? screen.getAllDisplays?.()[0]?.workArea
-    if (area) {
-      if (next.width > area.width) {
-        next.width = area.width
-        if (drag.h === -1) next.x = drag.right - area.width
-      }
-      if (next.height > area.height) {
-        next.height = area.height
-        if (drag.v === -1) next.y = drag.bottom - area.height
-      }
-    }
-    window.setBounds(next)
-    return window.getBounds()
+    if (record.fullscreen || window.isFullScreen() || !liveResize.tracks(window)) return window.getBounds()
+    return liveResize.move(cursor) ?? window.getBounds()
   }
   function endLiveResize(key) {
     const record = recordFor(key)
-    delete record.liveResize
+    const window = windowFor(key)
+    if (liveResize.tracks(window)) liveResize.end()
     if (!record.liveResizing) return state(key)
     record.liveResizing = false
-    const window = windowFor(key)
-    if (!record.fullscreen && !window.isFullScreen()) save(key)
-    return state(key)
-  }
-  function endLiveResize(key) {
-    const record = recordFor(key)
-    if (!record.liveResizing) return state(key)
-    record.liveResizing = false
-    const window = windowFor(key)
     if (!record.fullscreen && !window.isFullScreen()) save(key)
     return state(key)
   }

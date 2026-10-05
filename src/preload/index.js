@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('adModeControl', {
 
 contextBridge.exposeInMainWorld('windowControl', {
   getState: () => ipcRenderer.invoke('window-control:get-state'),
+  getResizeCapabilities: () => ipcRenderer.invoke('window-control:resize-capabilities'),
   setOpacity: (value) => ipcRenderer.invoke('window-control:set-opacity', value),
   setAlwaysOnTop: (value) => ipcRenderer.invoke('window-control:set-topmost', value),
   setFullscreen: (value) => ipcRenderer.invoke('window-control:set-fullscreen', value),

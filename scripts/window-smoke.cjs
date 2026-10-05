@@ -103,7 +103,8 @@ app.whenReady().then(async () => {
         }
       })()`)
       assert.equal(compact.columns,2)
-      assert.equal(compact.buttons,22)
+      // 22 个既有入口 + 手机投屏入口（f886e40 新增）
+      assert.equal(compact.buttons,23)
 
       home.setContentSize(1234,770)
       await pause(100)

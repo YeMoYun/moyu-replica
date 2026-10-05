@@ -20,6 +20,7 @@ import iconv from 'iconv-lite'
 import jschardet from 'jschardet'
 import { createStore } from './store.js'
 import { createWindowController } from './window-controls.mjs'
+import { createLiveResizeTracker } from './window-live-resize.mjs'
 import { normalizeNewFeatureWindow, presentWindow } from './window-opening.mjs'
 import { createAdWindowController } from './ad-window-controls.mjs'
 import { createChatWindowController } from './chat-window-controls.mjs'
@@ -74,6 +75,7 @@ let phoneMirrorQuitReady = false
 let shortcutManager = null
 let shortcutStatus = { success: false, errors: [] }
 let tray = null
+let liveResize = null
 
 function loadRoute(win, route) {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -523,9 +525,28 @@ function registerIpc() {
   handle('window-control:set-topmost', (event, value) => windowControls.setTopmost(keyFromSender(event), value))
   handle('window-control:set-fullscreen', (event, value) => windowControls.setFullscreen(keyFromSender(event), value))
   handle('window-control:set-auto-hide', (event, value) => windowControls.setAutoHide(keyFromSender(event), value))
-  handle('window-control:live-resize-begin', (event, directions, cursor) => windowControls.beginLiveResize(keyFromSender(event), directions, cursor))
-  handle('window-control:live-resize', (event, cursor) => windowControls.moveLiveResize(keyFromSender(event), cursor))
-  handle('window-control:live-resize-end', (event) => windowControls.endLiveResize(keyFromSender(event)))
+  handle('window-control:resize-capabilities', (event) => {
+    const key = keyFromSender(event)
+    const def = SITE_ROUTES[key] || {}
+    return {
+      // 仅透明功能窗口启用渲染层缩放手柄；不透明无边框窗口的原生缩放两个方向
+      // 都可用，带系统边框的窗口交给系统，聊天伪装窗口保持原生行为。
+      handles: !!key && key !== 'main' && !!def.transparent && !def.frame && !tryChatContext(key)
+    }
+  })
+  const liveResizeControllerFor = (key) => (Object.hasOwn(AD_MODES, key) ? adWindowControls : windowControls)
+  handle('window-control:live-resize-begin', (event, directions, cursor) => {
+    const key = keyFromSender(event)
+    return liveResizeControllerFor(key).beginLiveResize(key, directions, cursor)
+  })
+  handle('window-control:live-resize', (event, cursor) => {
+    const key = keyFromSender(event)
+    return liveResizeControllerFor(key).moveLiveResize(key, cursor)
+  })
+  handle('window-control:live-resize-end', (event) => {
+    const key = keyFromSender(event)
+    return liveResizeControllerFor(key).endLiveResize(key)
+  })
   handle('window-control:close', (event) => windowControls.close(keyFromSender(event)))
   handle('testPierce:setPierceEnabled', (_event, value) => windowControls.setPierce('testPierce', value))
   handle('testPierce:setWindowTransparent', (_event, value) => windowControls.setOpacity('testPierce', value))
@@ -790,10 +811,12 @@ function registerIpc() {
       if (w && pos && pos.appX !== undefined) w.setPosition(pos.appX, pos.appY)
     })
   }
-  handle('custom-website-set-window-size', (_e, w, h) => { const x = windows.get('customWebsiteAd'); if (x) x.setSize(w, h) })
-  handle('standalone-game-set-window-size', (_e, w, h) => { const x = windows.get('standaloneGameAd'); if (x) x.setSize(w, h) })
-  handle('bilibili-set-window-size', (_e, w, h) => { const x = windows.get('bilibili'); if (x) x.setSize(w, h) })
-  handle('douyin-set-window-size', (_e, w, h) => { const x = windows.get('douyin'); if (x) x.setSize(w, h) })
+  // resizable:false 的窗口在 Windows 上会忽略 setSize 的尺寸部分，统一改用 setBounds。
+  const setWindowSize = (key, w, h) => { const x = windows.get(key); if (x) { const b = x.getBounds(); x.setBounds({ ...b, width: w, height: h }) } }
+  handle('custom-website-set-window-size', (_e, w, h) => setWindowSize('customWebsiteAd', w, h))
+  handle('standalone-game-set-window-size', (_e, w, h) => setWindowSize('standaloneGameAd', w, h))
+  handle('bilibili-set-window-size', (_e, w, h) => setWindowSize('bilibili', w, h))
+  handle('douyin-set-window-size', (_e, w, h) => setWindowSize('douyin', w, h))
 
   // 关闭（send 型）
   const closes = {
@@ -883,8 +906,9 @@ app.whenReady().then(() => {
     })
   })
 
-  windowControls = createWindowController({ windows, store, screen })
-  adWindowControls = createAdWindowController({store,screen})
+  liveResize = createLiveResizeTracker({ screen })
+  windowControls = createWindowController({ windows, store, screen, liveResize })
+  adWindowControls = createAdWindowController({store,screen,liveResize})
   chatWindowControls = createChatWindowController({store,screen})
   chatServices = createChatServiceRegistry({store,notify:createVideoChatNotifier(windows)})
   videoChatRuntime = createVideoChatRuntime({chatServices,chatWindowControls,openRoute})

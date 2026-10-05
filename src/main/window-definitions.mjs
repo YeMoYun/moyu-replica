@@ -1,6 +1,8 @@
 // Defaults verified against the reference window constructors, not renderer viewport sizes.
 const definition = (route, width, height, options = {}) => ({ route, width, height, frame: false, skipTaskbar: true, ...options })
-const transparent = { transparent: true }
+// 透明窗口必须显式 resizable:false：Electron 对透明窗口不提供 WS_THICKFRAME，
+// 原生缩放区只能放大不能缩小；边缘缩放统一交给渲染层手柄（App.vue 全局挂载）。
+const transparent = { transparent: true, resizable: false }
 const smallAd = { ...transparent, alwaysOnTop: true, rightBottom: true }
 export const SITE_ROUTES = {
   web: definition('/web',1200,800,transparent),
@@ -26,10 +28,10 @@ export const SITE_ROUTES = {
   douyuOpacity: definition('/douyuOpacity',800,650,transparent),
   douyuControl: definition('/douyuControl',920,760),
   book: definition('/book',600,350,{...transparent,alwaysOnTop:true}),
-  bookReader: definition('/bookReader',400,300,{...transparent,webSecurity:false,minWidth:320,minHeight:240,resizable:true}),
+  bookReader: definition('/bookReader',400,300,{...transparent,webSecurity:false}),
   bookReaderAd: definition('/bookReaderAd',420,520,{webSecurity:false}),
   // resizable:false 关闭原生缩放区（外圈 4px 只能放大不能缩小），边缘缩放交给渲染层手柄。
-  weRead: definition('/weRead',400,800,{...transparent,resizable:false,alwaysOnTop:true}),
+  weRead: definition('/weRead',400,800,{...transparent,alwaysOnTop:true}),
   weReadAd: definition('/weReadAd',351,430,{alwaysOnTop:true,rightBottom:true}),
   zhihu: definition('/zhihu',1000,650,transparent),
   fanQue: definition('/fanQue',1250,650,transparent),

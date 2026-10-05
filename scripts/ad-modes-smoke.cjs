@@ -61,7 +61,8 @@ app.whenReady().then(async()=>{
       await check(kind+' dedicated compact controls have no old address/opacity toolbar',async()=>{
         assert.equal(await evaluate(w,'Boolean(document.querySelector(".addr,.bar,.ad-skin,[data-action=opacity-up]"))'),false)
         assert.equal(await evaluate(w,'getComputedStyle(document.querySelector(".ad-header")).height'),'28px')
-        assert.ok(w.isAlwaysOnTop())
+        // 2026-09-23 统一规则：新建/重开的功能窗口永久置顶恢复为关闭。
+        assert.equal(w.isAlwaysOnTop(), false, 'ad window appearance resets on open')
         await assert.rejects(evaluate(home,'window.adModeControl.getState()'),/广告窗口/)
         await assert.rejects(evaluate(w,"window.adModeControl.saveSettings({address:'javascript:alert(1)'})"))
       })
