@@ -11,3 +11,4 @@ previews/
 .worktrees/
 native/QtScrcpy/output/
 release/
+.zcodeignore
