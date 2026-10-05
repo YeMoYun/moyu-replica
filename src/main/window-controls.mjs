@@ -196,7 +196,9 @@ export function createWindowController({ windows, store, screen, setInterval: st
     return state(key)
   }
   // 渲染层缩放手柄：按增量调整边界，钳制最小尺寸并限制在工作区内；不落盘。
-  function applyLiveResize(key, delta) {
+  // 注意 resizable:false 时 Electron 会把 getMinimumSize() 报成当前窗口尺寸，
+  // 因此最小尺寸必须由调用方显式传入（来自窗口定义）。
+  function applyLiveResize(key, delta, minimum) {
     const record = recordFor(key)
     const window = windowFor(key)
     if (record.fullscreen || window.isFullScreen()) return window.getBounds()
@@ -205,7 +207,9 @@ export function createWindowController({ windows, store, screen, setInterval: st
     const next = { ...current }
     const dWidth = Number(delta?.widthDelta)
     const dHeight = Number(delta?.heightDelta)
-    const [minWidth, minHeight] = window.getMinimumSize?.() ?? [0, 0]
+    const [minWidth, minHeight] = Array.isArray(minimum) && minimum.length === 2 && minimum.every(Number.isFinite)
+      ? minimum
+      : (window.getMinimumSize?.() ?? [0, 0])
     if (Number.isFinite(dWidth) && dWidth) next.width = Math.max(minWidth, current.width + dWidth)
     if (Number.isFinite(dHeight) && dHeight) next.height = Math.max(minHeight, current.height + dHeight)
     if (next.width === current.width && next.height === current.height) return current

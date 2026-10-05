@@ -523,7 +523,11 @@ function registerIpc() {
   handle('window-control:set-topmost', (event, value) => windowControls.setTopmost(keyFromSender(event), value))
   handle('window-control:set-fullscreen', (event, value) => windowControls.setFullscreen(keyFromSender(event), value))
   handle('window-control:set-auto-hide', (event, value) => windowControls.setAutoHide(keyFromSender(event), value))
-  handle('window-control:live-resize', (event, delta) => windowControls.applyLiveResize(keyFromSender(event), delta || {}))
+  handle('window-control:live-resize', (event, delta) => {
+    const key = keyFromSender(event)
+    const def = SITE_ROUTES[key]
+    return windowControls.applyLiveResize(key, delta || {}, [def?.minWidth ?? 0, def?.minHeight ?? 0])
+  })
   handle('window-control:live-resize-end', (event) => windowControls.endLiveResize(keyFromSender(event)))
   handle('window-control:close', (event) => windowControls.close(keyFromSender(event)))
   handle('testPierce:setPierceEnabled', (_event, value) => windowControls.setPierce('testPierce', value))

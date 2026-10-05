@@ -31,12 +31,12 @@ test('local reader keeps its default size and has an explicit resize floor', () 
     [320, 240, true]
   )
 })
-test('WeRead window is edge-resizable and pinned above the taskbar by default', () => {
+test('WeRead resizes through renderer handles with native zones disabled and pins by default', () => {
   assert.deepEqual(
     [SITE_ROUTES.weRead.width, SITE_ROUTES.weRead.height],
     [400, 800]
   )
-  assert.equal(SITE_ROUTES.weRead.resizable, true)
+  assert.equal(SITE_ROUTES.weRead.resizable, false)
   assert.deepEqual(
     [SITE_ROUTES.weRead.minWidth, SITE_ROUTES.weRead.minHeight],
     [320, 400]
