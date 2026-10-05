@@ -99,24 +99,35 @@ test('topmost always uses the screen-saver level so windows float above the task
   assert.deepEqual([windows.get('web').top,windows.get('web').topLevel],[false,'screen-saver'])
 })
 class LiveResizeBoundary extends WindowBoundary {
-  minimum = [0, 0]
-  getMinimumSize() { return [...this.minimum] }
   setBounds(v) { this.bounds = { ...v }; this.emit('resize') }
 }
-test('live resize applies deltas, clamps to minimum size and the work area', () => {
+test('live resize moves only the grabbed edge and never repositions the window', () => {
   const {control,windows} = fixture()
   control.close('web')
-  const window = new LiveResizeBoundary(); window.minimum = [320, 400]
+  const window = new LiveResizeBoundary()
   windows.set('web',window); control.attach('web',window)
+  window.bounds = { x: 300, y: 200, width: 400, height: 800 }
   control.applyLiveResize('web',{widthDelta:-50})
-  assert.equal(window.bounds.width,350)
-  control.applyLiveResize('web',{widthDelta:-200})
-  assert.equal(window.bounds.width,320,'width floors at the window minimum')
-  control.applyLiveResize('web',{heightDelta:-1000})
-  assert.equal(window.bounds.height,400,'height floors at the window minimum')
-  control.applyLiveResize('web',{widthDelta:5000,heightDelta:5000})
-  assert.ok(window.bounds.width<=1920&&window.bounds.height<=1080,'bounds stay inside the work area')
-  assert.deepEqual(control.applyLiveResize('web',{}),window.bounds,'deltas without finite numbers change nothing')
+  assert.deepEqual(window.bounds,{x:300,y:200,width:350,height:800},'east drag keeps the left edge and top fixed')
+  control.applyLiveResize('web',{heightDelta:120})
+  assert.deepEqual(window.bounds,{x:300,y:200,width:350,height:920},'south drag keeps x/y fixed even past the work area')
+  control.applyLiveResize('web',{widthDelta:5000})
+  assert.equal(window.bounds.width,1920,'width caps at the display work area')
+  assert.equal(window.bounds.x,300,'capping never slides the window')
+})
+test('west and north live drags move the origin and keep the opposite edge fixed', () => {
+  const {control,windows} = fixture()
+  control.close('web')
+  const window = new LiveResizeBoundary()
+  windows.set('web',window); control.attach('web',window)
+  window.bounds = { x: 300, y: 200, width: 400, height: 800 }
+  control.applyLiveResize('web',{xDelta:60,widthDelta:-60})
+  assert.deepEqual(window.bounds,{x:360,y:200,width:340,height:800},'west drag pins the right edge')
+  control.applyLiveResize('web',{yDelta:-100,heightDelta:100})
+  assert.deepEqual(window.bounds,{x:360,y:100,width:340,height:900},'north drag pins the bottom edge')
+  control.applyLiveResize('web',{xDelta:400,widthDelta:-400})
+  assert.deepEqual([window.bounds.x,window.bounds.width],[640,60],'width floors at 60')
+  assert.equal(window.bounds.x+window.bounds.width,700,'right edge still fixed at the floor')
 })
 test('live resize skips persistence until the drag ends', () => {
   const {control,windows,store} = fixture()

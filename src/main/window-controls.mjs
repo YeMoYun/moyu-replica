@@ -2,6 +2,9 @@
 // screen-saver 层级，窗口与任务栏重叠时才能显示在任务栏上方。
 const TOPMOST_LEVEL = 'screen-saver'
 
+// 实时缩放的宽度/高度下限，仅防止拖成退化窗口；不作为可用性限制。
+const RESIZE_FLOOR = 60
+
 const opacityValue = (value) => {
   const number = Number(value)
   if (!Number.isFinite(number)) throw new Error('透明度必须是有效数值')
@@ -195,29 +198,30 @@ export function createWindowController({ windows, store, screen, setInterval: st
     updateTimer(); render(key)
     return state(key)
   }
-  // 渲染层缩放手柄：按增量调整边界，钳制最小尺寸并限制在工作区内；不落盘。
-  // 注意 resizable:false 时 Electron 会把 getMinimumSize() 报成当前窗口尺寸，
-  // 因此最小尺寸必须由调用方显式传入（来自窗口定义）。
-  function applyLiveResize(key, delta, minimum) {
+  // 渲染层缩放手柄：应用渲染层算好的边界增量。抓哪边哪边动——不做工作区复位、
+  // 不移动未涉及的边；尺寸封顶到窗口所在屏幕的工作区，下限仅防退化窗口。
+  function applyLiveResize(key, delta) {
     const record = recordFor(key)
     const window = windowFor(key)
     if (record.fullscreen || window.isFullScreen()) return window.getBounds()
     record.liveResizing = true
     const current = window.getBounds()
     const next = { ...current }
-    const dWidth = Number(delta?.widthDelta)
-    const dHeight = Number(delta?.heightDelta)
-    const [minWidth, minHeight] = Array.isArray(minimum) && minimum.length === 2 && minimum.every(Number.isFinite)
-      ? minimum
-      : (window.getMinimumSize?.() ?? [0, 0])
     const dX = Number(delta?.xDelta)
     const dY = Number(delta?.yDelta)
+    const dWidth = Number(delta?.widthDelta)
+    const dHeight = Number(delta?.heightDelta)
     if (Number.isFinite(dX) && dX) next.x = current.x + dX
     if (Number.isFinite(dY) && dY) next.y = current.y + dY
-    if (Number.isFinite(dWidth) && dWidth) next.width = Math.max(minWidth, current.width + dWidth)
-    if (Number.isFinite(dHeight) && dHeight) next.height = Math.max(minHeight, current.height + dHeight)
-    if (next.width === current.width && next.height === current.height) return current
-    window.setBounds(fitBounds(next, screen.getAllDisplays()))
+    if (Number.isFinite(dWidth) && dWidth) next.width = current.width + dWidth
+    if (Number.isFinite(dHeight) && dHeight) next.height = current.height + dHeight
+    const area = screen.getDisplayMatching?.(current)?.workArea ?? screen.getAllDisplays?.()[0]?.workArea
+    next.width = Math.min(Math.max(RESIZE_FLOOR, next.width), area?.width ?? next.width)
+    next.height = Math.min(Math.max(RESIZE_FLOOR, next.height), area?.height ?? next.height)
+    if (next.x !== current.x) next.x = Math.min(next.x, current.x + current.width - next.width)
+    if (next.y !== current.y) next.y = Math.min(next.y, current.y + current.height - next.height)
+    if (next.x === current.x && next.y === current.y && next.width === current.width && next.height === current.height) return current
+    window.setBounds({ x: next.x, y: next.y, width: next.width, height: next.height })
     return window.getBounds()
   }
   function endLiveResize(key) {
