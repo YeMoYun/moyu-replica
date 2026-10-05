@@ -1,8 +1,8 @@
 // Windows 上透明无边框窗口被 Electron 剥离 WS_THICKFRAME，系统缩放循环只能把
 // 边缘往外推、不能往里收；因此窗口定义中 resizable 必须为 false，让整圈边缘
-// 都交给这里的透明手柄。拖动以增量方式发给主进程，抓哪边哪边动、边缘 1:1
-// 跟随光标；主进程不做工作区复位，其余各边保持固定。
-// h/v 取值：1=右/下缘，-1=左/上缘（同时发 x/y 增量，保持对边固定），0=不涉及。
+// 都交给这里的透明手柄。拖动时渲染层只上报光标的绝对屏幕坐标（DIP），
+// 主进程把被抓的边缘直接放到光标处：边缘与鼠标严格贴合、1:1 跟随。
+// h/v 取值：1=右/下缘，-1=左/上缘，0=不涉及。
 const DIRECTIONS = {
   east: { h: 1, v: 0, cursor: 'ew-resize' },
   west: { h: -1, v: 0, cursor: 'ew-resize' },
@@ -14,25 +14,17 @@ const DIRECTIONS = {
   cornerSw: { h: -1, v: 1, cursor: 'nesw-resize' }
 }
 
-export function createResizeSession({ apply, commit }) {
+export function createResizeSession({ apply, commit, begin }) {
   let active = null
   return {
     get active() { return !!active },
     begin(directions, event) {
-      active = { ...directions, lastX: event.screenX, lastY: event.screenY }
+      active = directions
+      begin?.(directions, { x: event.screenX, y: event.screenY })
     },
     move(event) {
       if (!active) return false
-      const dx = event.screenX - active.lastX
-      const dy = event.screenY - active.lastY
-      active.lastX = event.screenX
-      active.lastY = event.screenY
-      const widthDelta = active.h === 1 ? dx : active.h === -1 ? -dx : 0
-      const heightDelta = active.v === 1 ? dy : active.v === -1 ? -dy : 0
-      const xDelta = active.h === -1 ? dx : 0
-      const yDelta = active.v === -1 ? dy : 0
-      if (!widthDelta && !heightDelta) return false
-      apply({ widthDelta, heightDelta, xDelta, yDelta })
+      apply({ x: event.screenX, y: event.screenY })
       return true
     },
     end() {

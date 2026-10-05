@@ -89,18 +89,30 @@ app.whenReady().then(async()=>{
     })
     await check('resize handle drag shrinks and enlarges the real window',async()=>{
       const before=window.getBounds()
-      const dragHandle=async(name,dx,dy,steps=5)=>evaluate(window,`(()=>{
-        const handle=document.querySelector('[data-resize=${name}]')
-        if(!handle)throw new Error('resize handle missing: ${name}')
-        let x=1000,y=1000
-        const down=new Event('pointerdown');down.screenX=x;down.screenY=y;down.button=0;down.pointerId=1
-        handle.dispatchEvent(down)
-        for(let i=1;i<=${steps};i++){x+=${dx}/${steps};y+=${dy}/${steps}
-          const move=new Event('pointermove');move.screenX=x;move.screenY=y;move.pointerId=1
-          handle.dispatchEvent(move)}
-        const up=new Event('pointerup');up.screenX=x;up.screenY=y;up.pointerId=1
-        handle.dispatchEvent(up)
-      })()`)
+      const anchors={
+        east:b=>[b.x+b.width,b.y+b.height/2],
+        west:b=>[b.x,b.y+b.height/2],
+        south:b=>[b.x+b.width/2,b.y+b.height],
+        north:b=>[b.x+b.width/2,b.y],
+        cornerSe:b=>[b.x+b.width,b.y+b.height],
+        cornerNw:b=>[b.x,b.y],
+        cornerNe:b=>[b.x+b.width,b.y],
+        cornerSw:b=>[b.x,b.y+b.height]
+      }
+      const dragHandle=async(name,dx,dy,steps=5)=>{
+        const [sx,sy]=anchors[name](window.getBounds())
+        await evaluate(window,`(()=>{
+          const handle=document.querySelector('[data-resize=${name}]')
+          if(!handle)throw new Error('resize handle missing: ${name}')
+          const down=new Event('pointerdown');down.screenX=${sx};down.screenY=${sy};down.button=0;down.pointerId=1
+          handle.dispatchEvent(down)
+          for(let i=1;i<=${steps};i++){
+            const move=new Event('pointermove');move.screenX=${sx}+${dx}*i/${steps};move.screenY=${sy}+${dy}*i/${steps};move.pointerId=1
+            handle.dispatchEvent(move)}
+          const up=new Event('pointerup');up.screenX=${sx}+${dx};up.screenY=${sy}+${dy};up.pointerId=1
+          handle.dispatchEvent(up)
+        })()`)
+      }
       await dragHandle('cornerSe',-60,-50)
       await until(()=>window.getBounds().width<=before.width-50,'corner drag shrank the window')
       const shrunk=window.getBounds()

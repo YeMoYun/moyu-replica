@@ -198,31 +198,66 @@ export function createWindowController({ windows, store, screen, setInterval: st
     updateTimer(); render(key)
     return state(key)
   }
-  // 渲染层缩放手柄：应用渲染层算好的边界增量。抓哪边哪边动——不做工作区复位、
-  // 不移动未涉及的边；尺寸封顶到窗口所在屏幕的工作区，下限仅防退化窗口。
-  function applyLiveResize(key, delta) {
+  // 渲染层缩放手柄：边缘吸附光标。按下时快照边界与光标位置，拖动中渲染层只
+  // 上报光标绝对坐标（DIP），主进程把被抓边缘直接放到光标处——边缘与鼠标严格
+  // 贴合、1:1 跟随；不做工作区复位，未涉及的边保持固定。下限仅防退化窗口。
+  function beginLiveResize(key, directions, cursor) {
     const record = recordFor(key)
     const window = windowFor(key)
-    if (record.fullscreen || window.isFullScreen()) return window.getBounds()
+    if (record.fullscreen || window.isFullScreen()) return false
+    const bounds = window.getBounds()
+    record.liveResize = {
+      h: directions?.h === 1 ? 1 : directions?.h === -1 ? -1 : 0,
+      v: directions?.v === 1 ? 1 : directions?.v === -1 ? -1 : 0,
+      left: bounds.x, top: bounds.y,
+      right: bounds.x + bounds.width, bottom: bounds.y + bounds.height,
+      cursorX: Number(cursor?.x), cursorY: Number(cursor?.y)
+    }
     record.liveResizing = true
-    const current = window.getBounds()
-    const next = { ...current }
-    const dX = Number(delta?.xDelta)
-    const dY = Number(delta?.yDelta)
-    const dWidth = Number(delta?.widthDelta)
-    const dHeight = Number(delta?.heightDelta)
-    if (Number.isFinite(dX) && dX) next.x = current.x + dX
-    if (Number.isFinite(dY) && dY) next.y = current.y + dY
-    if (Number.isFinite(dWidth) && dWidth) next.width = current.width + dWidth
-    if (Number.isFinite(dHeight) && dHeight) next.height = current.height + dHeight
-    const area = screen.getDisplayMatching?.(current)?.workArea ?? screen.getAllDisplays?.()[0]?.workArea
-    next.width = Math.min(Math.max(RESIZE_FLOOR, next.width), area?.width ?? next.width)
-    next.height = Math.min(Math.max(RESIZE_FLOOR, next.height), area?.height ?? next.height)
-    if (next.x !== current.x) next.x = Math.min(next.x, current.x + current.width - next.width)
-    if (next.y !== current.y) next.y = Math.min(next.y, current.y + current.height - next.height)
-    if (next.x === current.x && next.y === current.y && next.width === current.width && next.height === current.height) return current
-    window.setBounds({ x: next.x, y: next.y, width: next.width, height: next.height })
+    return true
+  }
+  function moveLiveResize(key, cursor) {
+    const record = recordFor(key)
+    const window = windowFor(key)
+    const drag = record.liveResize
+    if (!drag || record.fullscreen || window.isFullScreen()) return window.getBounds()
+    const cursorX = Number(cursor?.x)
+    const cursorY = Number(cursor?.y)
+    const next = { x: drag.left, y: drag.top, width: drag.right - drag.left, height: drag.bottom - drag.top }
+    if (drag.h === 1 && Number.isFinite(cursorX)) next.width = cursorX - drag.left
+    if (drag.h === -1 && Number.isFinite(cursorX)) { next.x = cursorX; next.width = drag.right - cursorX }
+    if (drag.v === 1 && Number.isFinite(cursorY)) next.height = cursorY - drag.top
+    if (drag.v === -1 && Number.isFinite(cursorY)) { next.y = cursorY; next.height = drag.bottom - cursorY }
+    if (next.width < RESIZE_FLOOR) {
+      next.width = RESIZE_FLOOR
+      if (drag.h === -1) next.x = drag.right - RESIZE_FLOOR
+    }
+    if (next.height < RESIZE_FLOOR) {
+      next.height = RESIZE_FLOOR
+      if (drag.v === -1) next.y = drag.bottom - RESIZE_FLOOR
+    }
+    const area = screen.getDisplayMatching?.(window.getBounds())?.workArea ?? screen.getAllDisplays?.()[0]?.workArea
+    if (area) {
+      if (next.width > area.width) {
+        next.width = area.width
+        if (drag.h === -1) next.x = drag.right - area.width
+      }
+      if (next.height > area.height) {
+        next.height = area.height
+        if (drag.v === -1) next.y = drag.bottom - area.height
+      }
+    }
+    window.setBounds(next)
     return window.getBounds()
+  }
+  function endLiveResize(key) {
+    const record = recordFor(key)
+    delete record.liveResize
+    if (!record.liveResizing) return state(key)
+    record.liveResizing = false
+    const window = windowFor(key)
+    if (!record.fullscreen && !window.isFullScreen()) save(key)
+    return state(key)
   }
   function endLiveResize(key) {
     const record = recordFor(key)
@@ -269,5 +304,5 @@ export function createWindowController({ windows, store, screen, setInterval: st
     screen.removeListener?.('display-removed', correctDisplays)
     screen.removeListener?.('display-metrics-changed', correctDisplays)
   }
-  return { attach, state, saveBounds, setOpacity, setTopmost, setFullscreen, setAutoHide, setPierce, applyLiveResize, endLiveResize, toggleBoss, close, restore, dispose }
+  return { attach, state, saveBounds, setOpacity, setTopmost, setFullscreen, setAutoHide, setPierce, beginLiveResize, moveLiveResize, endLiveResize, toggleBoss, close, restore, dispose }
 }

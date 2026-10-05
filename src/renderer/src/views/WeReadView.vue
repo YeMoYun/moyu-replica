@@ -107,7 +107,8 @@ onMounted(async()=>{
   window.addEventListener('keydown',keydown)
   if(!control||!window.settingApi||!window.ipcRenderer){error.value='微信读书控制桥不可用，请通过 Electron 启动';return}
   disposeResizeHandles=mountResizeHandles({host:root.value,session:createResizeSession({
-    apply:delta=>{control.setLiveResize(delta).catch(()=>{})},
+    begin:(directions,cursor)=>{control.setLiveResizeBegin(directions,cursor).catch(()=>{})},
+    apply:cursor=>{control.setLiveResize(cursor).catch(()=>{})},
     commit:()=>{control.setLiveResizeEnd().catch(()=>{})}
   })})
   subscriptions.push(control.onState(receiveState),control.onError(message=>{error.value=message}),
