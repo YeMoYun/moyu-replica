@@ -26,13 +26,13 @@ test('resize session turns pointer deltas into incremental resize deltas', () =>
   let committed = 0
   const session = createResizeSession({ apply: (delta) => applied.push(delta), commit: () => { committed++ } })
   assert.equal(session.move(pointer('pointermove', 100, 100)), false, 'moves before begin are ignored')
-  session.begin({ east: true, south: true }, pointer('pointerdown', 100, 100))
+  session.begin({ h: 1, v: 1 }, pointer('pointerdown', 100, 100))
   assert.ok(session.active)
   assert.equal(session.move(pointer('pointermove', 92, 130)), true)
-  assert.deepEqual(applied, [{ widthDelta: -8, heightDelta: 30 }])
+  assert.deepEqual(applied, [{ widthDelta: -8, heightDelta: 30, xDelta: 0, yDelta: 0 }])
   assert.equal(session.move(pointer('pointermove', 92, 130)), false, 'no delta means no apply')
   assert.equal(session.move(pointer('pointermove', 80, 118)), true)
-  assert.deepEqual(applied[1], { widthDelta: -12, heightDelta: -12 })
+  assert.deepEqual(applied[1], { widthDelta: -12, heightDelta: -12, xDelta: 0, yDelta: 0 })
   assert.equal(session.end(), true)
   assert.equal(committed, 1)
   assert.equal(session.end(), false, 'second end is a no-op')
@@ -43,12 +43,26 @@ test('resize session turns pointer deltas into incremental resize deltas', () =>
 test('east-only session keeps height untouched and commit fires once per drag', () => {
   const applied = []
   const session = createResizeSession({ apply: (delta) => applied.push(delta), commit: () => {} })
-  session.begin({ east: true }, pointer('pointerdown', 10, 10))
+  session.begin({ h: 1, v: 0 }, pointer('pointerdown', 10, 10))
   session.move(pointer('pointermove', 40, 999))
-  assert.deepEqual(applied, [{ widthDelta: 30, heightDelta: 0 }])
+  assert.deepEqual(applied, [{ widthDelta: 30, heightDelta: 0, xDelta: 0, yDelta: 0 }])
 })
 
-test('handles mount transparent edge strips that drive the session', () => {
+test('west and north drags move the window origin so the opposite edge stays fixed', () => {
+  const applied = []
+  const session = createResizeSession({ apply: (delta) => applied.push(delta), commit: () => {} })
+  session.begin({ h: -1, v: 0 }, pointer('pointerdown', 100, 100))
+  session.move(pointer('pointermove', 130, 100))
+  assert.deepEqual(applied[0], { widthDelta: -30, heightDelta: 0, xDelta: 30, yDelta: 0 })
+  session.begin({ h: 0, v: -1 }, pointer('pointerdown', 100, 100))
+  session.move(pointer('pointermove', 100, 60))
+  assert.deepEqual(applied[1], { widthDelta: 0, heightDelta: 40, xDelta: 0, yDelta: -40 })
+  session.begin({ h: -1, v: -1 }, pointer('pointerdown', 100, 100))
+  session.move(pointer('pointermove', 110, 90))
+  assert.deepEqual(applied[2], { widthDelta: -10, heightDelta: 10, xDelta: 10, yDelta: -10 })
+})
+
+test('all eight handles mount as transparent edge strips that drive the session', () => {
   const window = new Window()
   const document = window.document
   const host = document.createElement('div')
@@ -57,29 +71,36 @@ test('handles mount transparent edge strips that drive the session', () => {
   let committed = 0
   const session = createResizeSession({ apply: (delta) => applied.push(delta), commit: () => { committed++ } })
   const dispose = mountResizeHandles({ doc: document, host, session })
-  const byName = (name) => host.querySelector(`[data-resize="${name}"]`)
-  for (const name of ['east', 'south', 'corner']) {
-    const handle = byName(name)
+  const names = ['east', 'west', 'south', 'north', 'cornerSe', 'cornerNw', 'cornerNe', 'cornerSw']
+  for (const name of names) {
+    const handle = host.querySelector(`[data-resize="${name}"]`)
     assert.ok(handle, `${name} handle must exist`)
     assert.equal(handle.getAttribute('aria-hidden'), 'true')
     assert.match(handle.style.cssText, /position:\s*absolute/)
   }
-  assert.match(byName('east').style.cssText, /cursor:\s*ew-resize/)
-  assert.match(byName('south').style.cssText, /cursor:\s*ns-resize/)
-  assert.match(byName('corner').style.cssText, /cursor:\s*nwse-resize/)
+  assert.match(host.querySelector('[data-resize="east"]').style.cssText, /cursor:\s*ew-resize/)
+  assert.match(host.querySelector('[data-resize="east"]').style.cssText, /right:\s*0/)
+  assert.match(host.querySelector('[data-resize="west"]').style.cssText, /left:\s*0/)
+  assert.match(host.querySelector('[data-resize="south"]').style.cssText, /bottom:\s*0/)
+  assert.match(host.querySelector('[data-resize="north"]').style.cssText, /top:\s*0/)
+  assert.match(host.querySelector('[data-resize="north"]').style.cssText, /cursor:\s*ns-resize/)
+  assert.match(host.querySelector('[data-resize="cornerNe"]').style.cssText, /cursor:\s*nesw-resize/)
+  assert.match(host.querySelector('[data-resize="cornerNw"]').style.cssText, /left:\s*0/)
+  assert.match(host.querySelector('[data-resize="cornerNw"]').style.cssText, /top:\s*0/)
+  assert.match(host.querySelector('[data-resize="cornerSe"]').style.cssText, /cursor:\s*nwse-resize/)
 
-  const corner = byName('corner')
+  const corner = host.querySelector('[data-resize="cornerSe"]')
   corner.dispatchEvent(domPointer(window, 'pointerdown', 500, 400))
   corner.dispatchEvent(domPointer(window, 'pointermove', 470, 380))
-  assert.deepEqual(applied, [{ widthDelta: -30, heightDelta: -20 }])
+  assert.deepEqual(applied, [{ widthDelta: -30, heightDelta: -20, xDelta: 0, yDelta: 0 }])
   corner.dispatchEvent(domPointer(window, 'pointerup', 470, 380))
   assert.equal(committed, 1)
 
-  const east = byName('east')
-  east.dispatchEvent(domPointer(window, 'pointerdown', 500, 100))
-  east.dispatchEvent(domPointer(window, 'pointermove', 530, 100))
-  east.dispatchEvent(domPointer(window, 'pointerup', 530, 100))
-  assert.deepEqual(applied[1], { widthDelta: 30, heightDelta: 0 })
+  const west = host.querySelector('[data-resize="west"]')
+  west.dispatchEvent(domPointer(window, 'pointerdown', 100, 300))
+  west.dispatchEvent(domPointer(window, 'pointermove', 140, 300))
+  west.dispatchEvent(domPointer(window, 'pointerup', 140, 300))
+  assert.deepEqual(applied[1], { widthDelta: -40, heightDelta: 0, xDelta: 40, yDelta: 0 })
   assert.equal(committed, 2)
 
   dispose()

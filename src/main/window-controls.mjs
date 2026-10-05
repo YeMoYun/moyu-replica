@@ -210,6 +210,10 @@ export function createWindowController({ windows, store, screen, setInterval: st
     const [minWidth, minHeight] = Array.isArray(minimum) && minimum.length === 2 && minimum.every(Number.isFinite)
       ? minimum
       : (window.getMinimumSize?.() ?? [0, 0])
+    const dX = Number(delta?.xDelta)
+    const dY = Number(delta?.yDelta)
+    if (Number.isFinite(dX) && dX) next.x = current.x + dX
+    if (Number.isFinite(dY) && dY) next.y = current.y + dY
     if (Number.isFinite(dWidth) && dWidth) next.width = Math.max(minWidth, current.width + dWidth)
     if (Number.isFinite(dHeight) && dHeight) next.height = Math.max(minHeight, current.height + dHeight)
     if (next.width === current.width && next.height === current.height) return current

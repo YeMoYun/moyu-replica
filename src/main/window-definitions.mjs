@@ -29,7 +29,7 @@ export const SITE_ROUTES = {
   bookReader: definition('/bookReader',400,300,{...transparent,webSecurity:false,minWidth:320,minHeight:240,resizable:true}),
   bookReaderAd: definition('/bookReaderAd',420,520,{webSecurity:false}),
   // resizable:false 关闭原生缩放区（外圈 4px 只能放大不能缩小），边缘缩放交给渲染层手柄。
-  weRead: definition('/weRead',400,800,{...transparent,resizable:false,minWidth:320,minHeight:400,alwaysOnTop:true}),
+  weRead: definition('/weRead',400,800,{...transparent,resizable:false,alwaysOnTop:true}),
   weReadAd: definition('/weReadAd',351,430,{alwaysOnTop:true,rightBottom:true}),
   zhihu: definition('/zhihu',1000,650,transparent),
   fanQue: definition('/fanQue',1250,650,transparent),

@@ -37,10 +37,8 @@ test('WeRead resizes through renderer handles with native zones disabled and pin
     [400, 800]
   )
   assert.equal(SITE_ROUTES.weRead.resizable, false)
-  assert.deepEqual(
-    [SITE_ROUTES.weRead.minWidth, SITE_ROUTES.weRead.minHeight],
-    [320, 400]
-  )
+  assert.equal(SITE_ROUTES.weRead.minWidth, undefined)
+  assert.equal(SITE_ROUTES.weRead.minHeight, undefined)
   assert.equal(SITE_ROUTES.weRead.alwaysOnTop, true)
 })
 test('all video advertisement windows use compact always-on-top bounds',()=>{
