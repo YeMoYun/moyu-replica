@@ -98,6 +98,40 @@ test('topmost always uses the screen-saver level so windows float above the task
   control.setTopmost('web',false)
   assert.deepEqual([windows.get('web').top,windows.get('web').topLevel],[false,'screen-saver'])
 })
+class LiveResizeBoundary extends WindowBoundary {
+  minimum = [0, 0]
+  getMinimumSize() { return [...this.minimum] }
+  setBounds(v) { this.bounds = { ...v }; this.emit('resize') }
+}
+test('live resize applies deltas, clamps to minimum size and the work area', () => {
+  const {control,windows} = fixture()
+  control.close('web')
+  const window = new LiveResizeBoundary(); window.minimum = [320, 400]
+  windows.set('web',window); control.attach('web',window)
+  control.applyLiveResize('web',{widthDelta:-50})
+  assert.equal(window.bounds.width,350)
+  control.applyLiveResize('web',{widthDelta:-200})
+  assert.equal(window.bounds.width,320,'width floors at the window minimum')
+  control.applyLiveResize('web',{heightDelta:-1000})
+  assert.equal(window.bounds.height,400,'height floors at the window minimum')
+  control.applyLiveResize('web',{widthDelta:5000,heightDelta:5000})
+  assert.ok(window.bounds.width<=1920&&window.bounds.height<=1080,'bounds stay inside the work area')
+  assert.deepEqual(control.applyLiveResize('web',{}),window.bounds,'deltas without finite numbers change nothing')
+})
+test('live resize skips persistence until the drag ends', () => {
+  const {control,windows,store} = fixture()
+  control.close('web')
+  const window = new LiveResizeBoundary()
+  windows.set('web',window); control.attach('web',window)
+  const persistedAtStart=store.get('windowState.web').bounds
+  control.applyLiveResize('web',{widthDelta:-60,heightDelta:-100})
+  assert.deepEqual(store.get('windowState.web').bounds,persistedAtStart,'no config writes during the drag')
+  const state = control.endLiveResize('web')
+  assert.equal(state.bounds.width,340)
+  assert.deepEqual(store.get('windowState.web').bounds,window.bounds,'end of drag persists once')
+  window.bounds={x:10,y:10,width:360,height:520}; window.emit('resize')
+  assert.deepEqual(store.get('windowState.web').bounds,window.bounds,'ordinary resize events persist again')
+})
 test('off-screen bounds are brought back to an available display', () => {
   assert.equal(typeof fitBounds,'function')
   const result=fitBounds({x:9999,y:9999,width:400,height:300},[{workArea:{x:0,y:0,width:1000,height:700}}])

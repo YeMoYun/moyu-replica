@@ -116,6 +116,7 @@ export function createWindowController({ windows, store, screen, setInterval: st
       alwaysOnTop: saved.alwaysOnTop ?? store.get(`${key}.alwaysOnTop`) ?? window.isAlwaysOnTop(),
       autoHideEnabled: saved.autoHideEnabled ?? store.get(`${key}.autoHideEnabled`) ?? store.get(`${key}.autoHide`) ?? false,
       autoHidden: false, bossHidden: bossHidden && key !== 'main', pierceEnabled: false, pierceIgnoring: false, captureInFlight: false,
+      liveResizing: false,
       fullscreen: false, borderlessFullscreen: (options.platform ?? process.platform) === 'win32' && !!options.transparent,
       normalBounds: window.getBounds()
     }
@@ -133,7 +134,11 @@ export function createWindowController({ windows, store, screen, setInterval: st
     render(key)
     const saveBounds = () => {
       try {
-        if (!record.fullscreen && !window.isFullScreen()) { record.normalBounds = window.getBounds(); save(key) }
+        if (!record.fullscreen && !window.isFullScreen()) {
+          record.normalBounds = window.getBounds()
+          // 实时拖拽缩放期间跳过持久化，结束后由 endLiveResize 统一写入一次。
+          if (!record.liveResizing) save(key)
+        }
       } catch (error) { report(key, error) }
     }
     window.on('moved', saveBounds)
@@ -190,6 +195,31 @@ export function createWindowController({ windows, store, screen, setInterval: st
     updateTimer(); render(key)
     return state(key)
   }
+  // 渲染层缩放手柄：按增量调整边界，钳制最小尺寸并限制在工作区内；不落盘。
+  function applyLiveResize(key, delta) {
+    const record = recordFor(key)
+    const window = windowFor(key)
+    if (record.fullscreen || window.isFullScreen()) return window.getBounds()
+    record.liveResizing = true
+    const current = window.getBounds()
+    const next = { ...current }
+    const dWidth = Number(delta?.widthDelta)
+    const dHeight = Number(delta?.heightDelta)
+    const [minWidth, minHeight] = window.getMinimumSize?.() ?? [0, 0]
+    if (Number.isFinite(dWidth) && dWidth) next.width = Math.max(minWidth, current.width + dWidth)
+    if (Number.isFinite(dHeight) && dHeight) next.height = Math.max(minHeight, current.height + dHeight)
+    if (next.width === current.width && next.height === current.height) return current
+    window.setBounds(fitBounds(next, screen.getAllDisplays()))
+    return window.getBounds()
+  }
+  function endLiveResize(key) {
+    const record = recordFor(key)
+    if (!record.liveResizing) return state(key)
+    record.liveResizing = false
+    const window = windowFor(key)
+    if (!record.fullscreen && !window.isFullScreen()) save(key)
+    return state(key)
+  }
   function toggleBoss() {
     bossHidden = !bossHidden
     for (const [key, record] of states) {
@@ -227,5 +257,5 @@ export function createWindowController({ windows, store, screen, setInterval: st
     screen.removeListener?.('display-removed', correctDisplays)
     screen.removeListener?.('display-metrics-changed', correctDisplays)
   }
-  return { attach, state, saveBounds, setOpacity, setTopmost, setFullscreen, setAutoHide, setPierce, toggleBoss, close, restore, dispose }
+  return { attach, state, saveBounds, setOpacity, setTopmost, setFullscreen, setAutoHide, setPierce, applyLiveResize, endLiveResize, toggleBoss, close, restore, dispose }
 }

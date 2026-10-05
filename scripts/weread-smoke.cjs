@@ -87,6 +87,30 @@ app.whenReady().then(async()=>{
       assert.equal(window.isAlwaysOnTop(),true)
       assert.equal(await until(async()=>zOrderVersusTaskbar(window),'above taskbar on open'),'ABOVE')
     })
+    await check('resize handle drag shrinks and enlarges the real window',async()=>{
+      const before=window.getBounds()
+      const dragHandle=async(name,dx,dy,steps=5)=>evaluate(window,`(()=>{
+        const handle=document.querySelector('[data-resize=${name}]')
+        if(!handle)throw new Error('resize handle missing: ${name}')
+        let x=1000,y=1000
+        const down=new Event('pointerdown');down.screenX=x;down.screenY=y;down.button=0;down.pointerId=1
+        handle.dispatchEvent(down)
+        for(let i=1;i<=${steps};i++){x+=${dx}/${steps};y+=${dy}/${steps}
+          const move=new Event('pointermove');move.screenX=x;move.screenY=y;move.pointerId=1
+          handle.dispatchEvent(move)}
+        const up=new Event('pointerup');up.screenX=x;up.screenY=y;up.pointerId=1
+        handle.dispatchEvent(up)
+      })()`)
+      await dragHandle('corner',-60,-50)
+      await until(()=>window.getBounds().width<=before.width-50,'corner drag shrank the window')
+      const shrunk=window.getBounds()
+      assert.ok(shrunk.height<=before.height-40,'height shrank too')
+      await dragHandle('east',80,0)
+      await until(()=>window.getBounds().width>=shrunk.width+70,'east drag enlarged the window')
+      await dragHandle('south',0,-40)
+      await until(()=>window.getBounds().height<=shrunk.height-30,'south drag shrank the height')
+      assert.ok(Math.abs(window.getOpacity()-1)<0.001,'resize never touches window opacity')
+    })
     if(process.argv.includes('--restore-only')){
       assert.ok(Math.abs(window.getOpacity()-1)<0.001);assert.equal(window.isAlwaysOnTop(),true)
       assert.equal(window.isResizable(),true)

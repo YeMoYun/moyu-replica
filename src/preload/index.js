@@ -67,6 +67,8 @@ contextBridge.exposeInMainWorld('windowControl', {
   setAlwaysOnTop: (value) => ipcRenderer.invoke('window-control:set-topmost', value),
   setFullscreen: (value) => ipcRenderer.invoke('window-control:set-fullscreen', value),
   setAutoHide: (value) => ipcRenderer.invoke('window-control:set-auto-hide', value),
+  setLiveResize: (delta) => ipcRenderer.invoke('window-control:live-resize', delta),
+  setLiveResizeEnd: () => ipcRenderer.invoke('window-control:live-resize-end'),
   close: () => ipcRenderer.invoke('window-control:close'),
   onState: on('window-control:state'),
   onError: on('window-control:error'),
