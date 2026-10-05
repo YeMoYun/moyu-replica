@@ -15,7 +15,7 @@ class WindowBoundary extends EventEmitter {
   setBounds(v) { this.bounds = { ...v } }
   setOpacity(v) { this.opacity = v }
   getOpacity() { return this.opacity }
-  setAlwaysOnTop(v) { this.top = v }
+  setAlwaysOnTop(v, level) { this.top = v; this.topLevel = level }
   isAlwaysOnTop() { return this.top }
   setFullScreen(v) { this.fullscreen = v }
   isFullScreen() { return this.fullscreen }
@@ -87,6 +87,16 @@ test('reopened window restores opacity, topmost and bounds', () => {
   control.close('web')
   const reopened = new WindowBoundary(); windows.set('web',reopened); control.attach('web',reopened)
   assert.equal(reopened.opacity,0.5); assert.equal(reopened.top,true); assert.equal(reopened.bounds.x,100)
+})
+test('topmost always uses the screen-saver level so windows float above the taskbar', () => {
+  const {control,windows} = fixture()
+  control.setTopmost('web',true)
+  assert.deepEqual([windows.get('web').top,windows.get('web').topLevel],[true,'screen-saver'])
+  control.close('web')
+  const reopened = new WindowBoundary(); windows.set('web',reopened); control.attach('web',reopened)
+  assert.deepEqual([reopened.top,reopened.topLevel],[true,'screen-saver'])
+  control.setTopmost('web',false)
+  assert.deepEqual([windows.get('web').top,windows.get('web').topLevel],[false,'screen-saver'])
 })
 test('off-screen bounds are brought back to an available display', () => {
   assert.equal(typeof fitBounds,'function')

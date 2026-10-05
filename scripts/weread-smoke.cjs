@@ -1,6 +1,7 @@
 // Production Electron/Vue integration, isolated settings and local guest content only.
 const {app,BrowserWindow,session,globalShortcut,webContents,screen}=require('electron')
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict')
+const {execFile}=require('node:child_process')
 const {pathToFileURL}=require('node:url')
 if(!process.env.MOYU_WEREAD_DATA_DIR)throw new Error('Isolated userData is required')
 app.setPath('userData',process.env.MOYU_WEREAD_DATA_DIR);app.disableHardwareAcceleration()
@@ -11,7 +12,7 @@ async function until(predicate,label){for(let n=0;n<100;n++){const result=await 
 async function check(name,fn){await fn();passed++;console.log(`PASS ${name}`)}
 const find=route=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().endsWith(`#${route}`))
 const fixture=pathToFileURL(path.join(__dirname,'../tests/fixtures/web/reader/weread.html')).href
-const watchdog=setTimeout(()=>{console.error('WEREAD smoke timeout');app.exit(1)},60000)
+const watchdog=setTimeout(()=>{console.error('WEREAD smoke timeout');app.exit(1)},90000)
 const artifacts=path.join(__dirname,'../.artifacts/weread-demo-20260917')
 async function click(window,action){return evaluate(window,`document.querySelector('[data-action="${action}"]').click()`)}
 async function ready(window){return until(()=>evaluate(window,"Boolean(document.querySelector('[data-action=reader-controls]') && !document.querySelector('[data-action=reader-controls]').disabled)"),'reading renderer ready')}
@@ -23,6 +24,52 @@ async function loadFixture(window){
   return webContents.fromId(id)
 }
 async function screenshot(window,name){fs.mkdirSync(artifacts,{recursive:true});fs.writeFileSync(path.join(artifacts,name),(await window.webContents.capturePage()).toPNG())}
+// 对比窗口与任务栏（Shell_TrayWnd）的实际 Z 序：screen-saver 置顶层级必须返回 ABOVE，
+// 默认 floating 层级或未置顶窗口返回 BELOW（这正是“被任务栏遮挡”的回归断言）。
+// WM_NCHITTEST(0x84) 探针查询边缘命中码：透明无边框窗口没有 WS_THICKFRAME，
+// 边缘缩放由 Chromium 的 NonClientHitTest 提供（右缘 11=HTRIGHT，中心 1=HTCLIENT）。
+const ZORDER_SOURCE=[
+  'using System;using System.Runtime.InteropServices;',
+  'public static class ZOrder{',
+  '  [DllImport("user32.dll")]static extern IntPtr FindWindow(string cls,string title);',
+  '  [DllImport("user32.dll")]static extern IntPtr GetDesktopWindow();',
+  '  [DllImport("user32.dll")]static extern IntPtr GetWindow(IntPtr h,uint cmd);',
+  '  [DllImport("user32.dll")]public static extern IntPtr SendMessage(IntPtr h,uint msg,IntPtr w,IntPtr l);',
+  '  public static string Check(long target){',
+  '    IntPtr taskbar=FindWindow("Shell_TrayWnd",null);',
+  '    if(taskbar==IntPtr.Zero)return "NO_TASKBAR";',
+  '    IntPtr want=new IntPtr(target);',
+  '    IntPtr current=GetWindow(GetDesktopWindow(),5);',
+  '    int targetAt=-1,taskbarAt=-1,index=0;',
+  '    while(current!=IntPtr.Zero&&(targetAt<0||taskbarAt<0)){',
+  '      if(current==want)targetAt=index;',
+  '      if(current==taskbar)taskbarAt=index;',
+  '      current=GetWindow(current,2);index++;}',
+  '    if(targetAt<0)return "TARGET_NOT_FOUND";',
+  '    if(taskbarAt<0)return "TASKBAR_NOT_FOUND";',
+  '    return targetAt<taskbarAt?"ABOVE":"BELOW";}',
+  '  public static int Probe(long target,int x,int y){',
+  '    return (int)SendMessage(new IntPtr(target),0x0084,IntPtr.Zero,(IntPtr)((y<<16)|(x&0xFFFF)));}}'
+].join('\n')
+function zOrderVersusTaskbar(window){
+  const raw=window.getNativeWindowHandle()
+  const handle=raw.length>=8?raw.readBigUInt64LE(0).toString():raw.readUInt32LE(0).toString()
+  const command=`Add-Type -TypeDefinition '${ZORDER_SOURCE}';[ZOrder]::Check(${handle})`
+  return new Promise((resolve,reject)=>execFile('powershell.exe',['-NoProfile','-NonInteractive','-Command',command],{windowsHide:true},(error,stdout)=>{
+    if(error)reject(error instanceof Error?error:new Error(String(error)))
+    else resolve(stdout.trim())
+  }))
+}
+// 查询窗口客户区某点（屏幕坐标）的 WM_NCHITTEST 命中码。
+function hitTestAt(window,x,y){
+  const raw=window.getNativeWindowHandle()
+  const handle=raw.length>=8?raw.readBigUInt64LE(0).toString():raw.readUInt32LE(0).toString()
+  const command=`Add-Type -TypeDefinition '${ZORDER_SOURCE}';[ZOrder]::Probe(${handle},${x},${y})`
+  return new Promise((resolve,reject)=>execFile('powershell.exe',['-NoProfile','-NonInteractive','-Command',command],{windowsHide:true},(error,stdout)=>{
+    if(error)reject(error instanceof Error?error:new Error(String(error)))
+    else resolve(Number(stdout.trim()))
+  }))
+}
 app.whenReady().then(async()=>{
   session.defaultSession.webRequest.onBeforeRequest({urls:['http://*/*','https://*/*']},(_details,callback)=>callback({cancel:true}))
   try{
@@ -30,12 +77,24 @@ app.whenReady().then(async()=>{
     await until(()=>evaluate(home,'Boolean(window.homeElectronAPI && window.windowControl)'),'preload')
     await evaluate(home,'window.homeElectronAPI.createWeRead()')
     let window=await until(()=>find('/weRead'),'WeRead window'), guest=await loadFixture(window)
+    await check('WeRead opens resizable and pinned above the taskbar',async()=>{
+      assert.equal(window.isResizable(),true)
+      const bounds=window.getBounds()
+      const cx=bounds.x+(bounds.width>>1),cy=bounds.y+(bounds.height>>1)
+      assert.equal(await hitTestAt(window,cx,cy),1,'window center must stay HTCLIENT')
+      assert.equal(await hitTestAt(window,bounds.x+bounds.width-2,cy),11,'right edge must offer HTRIGHT resize')
+      assert.equal(await hitTestAt(window,cx,bounds.y+bounds.height-2),15,'bottom edge must offer HTBOTTOM resize')
+      assert.equal(window.isAlwaysOnTop(),true)
+      assert.equal(await until(async()=>zOrderVersusTaskbar(window),'above taskbar on open'),'ABOVE')
+    })
     if(process.argv.includes('--restore-only')){
-      assert.ok(Math.abs(window.getOpacity()-0.33)<0.03);assert.equal(window.isAlwaysOnTop(),true)
+      assert.ok(Math.abs(window.getOpacity()-1)<0.001);assert.equal(window.isAlwaysOnTop(),true)
+      assert.equal(window.isResizable(),true)
+      assert.equal(await until(async()=>zOrderVersusTaskbar(window),'above taskbar after restart'),'ABOVE')
       assert.equal(await evaluate(window,"document.querySelector('[data-action=web-transparent]').getAttribute('aria-pressed')"),'true')
       assert.equal(await guest.executeJavaScript('getComputedStyle(document.body).backgroundColor'),'rgba(0, 0, 0, 0)')
       assert.ok(Math.abs(guest.getZoomFactor()-0.85)<0.01)
-      console.log('WEREAD_RESTART_RESULT {"passed":3,"failed":0}')
+      console.log('WEREAD_RESTART_RESULT {"passed":4,"failed":0}')
       clearTimeout(watchdog);globalShortcut.unregisterAll();app.exit(0);return
     }
     await check('ordinary WeRead has only recording-style compact controls',async()=>{
@@ -88,8 +147,12 @@ app.whenReady().then(async()=>{
       await evaluate(window,"document.querySelector('.dialog-close').click()")
     })
     await check('topmost is a separate native setting',async()=>{
-      await click(window,'topmost');await until(()=>window.isAlwaysOnTop(),'topmost')
-      assert.equal(window.isFullScreen(),false);assert.ok(Math.abs(window.getOpacity()-0.33)<0.03)
+      assert.equal(window.isAlwaysOnTop(),true);assert.equal(window.isFullScreen(),false)
+      assert.ok(Math.abs(window.getOpacity()-0.33)<0.03)
+      await click(window,'topmost');await until(()=>!window.isAlwaysOnTop(),'unpinned')
+      assert.equal(await until(async()=>zOrderVersusTaskbar(window),'below taskbar when unpinned'),'BELOW')
+      await click(window,'topmost');await until(()=>window.isAlwaysOnTop(),'pinned')
+      assert.equal(await until(async()=>zOrderVersusTaskbar(window),'above taskbar when pinned'),'ABOVE')
     })
     await check('More panel operates style zoom and real page scrollbars',async()=>{
       await click(window,'more');await until(()=>evaluate(window,"Boolean(document.querySelector('[data-action=style]'))"),'more')
@@ -127,11 +190,11 @@ app.whenReady().then(async()=>{
       assert.equal(await guest.executeJavaScript('getComputedStyle(document.body).backgroundColor'),'rgba(0, 0, 0, 0)')
       assert.ok(Math.abs(guest.getZoomFactor()-0.85)<0.01)
     })
-    await check('closing and reopening restores style and native window settings',async()=>{
+    await check('closing and reopening resets appearance to defaults and restores content settings',async()=>{
       const old=window;await click(window,'close').catch(error=>{if(!/destroy|closed/i.test(error.message))throw error})
       await until(()=>old.isDestroyed(),'closed')
       await evaluate(home,'window.homeElectronAPI.createWeRead()');window=await until(()=>find('/weRead'),'reopen');guest=await loadFixture(window)
-      assert.ok(Math.abs(window.getOpacity()-0.33)<0.03);assert.equal(window.isAlwaysOnTop(),true)
+      assert.ok(Math.abs(window.getOpacity()-1)<0.001);assert.equal(window.isAlwaysOnTop(),true);assert.equal(window.isResizable(),true)
       assert.equal(await guest.executeJavaScript('getComputedStyle(document.body).backgroundColor'),'rgba(0, 0, 0, 0)')
       assert.ok(Math.abs(guest.getZoomFactor()-0.85)<0.01)
     })

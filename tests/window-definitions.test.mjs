@@ -31,6 +31,18 @@ test('local reader keeps its default size and has an explicit resize floor', () 
     [320, 240, true]
   )
 })
+test('WeRead window is edge-resizable and pinned above the taskbar by default', () => {
+  assert.deepEqual(
+    [SITE_ROUTES.weRead.width, SITE_ROUTES.weRead.height],
+    [400, 800]
+  )
+  assert.equal(SITE_ROUTES.weRead.resizable, true)
+  assert.deepEqual(
+    [SITE_ROUTES.weRead.minWidth, SITE_ROUTES.weRead.minHeight],
+    [320, 400]
+  )
+  assert.equal(SITE_ROUTES.weRead.alwaysOnTop, true)
+})
 test('all video advertisement windows use compact always-on-top bounds',()=>{
   for(const key of ['douyin','bilibili','huya','douyu','kuaishou']){
     assert.equal(SITE_ROUTES[key].width,286)

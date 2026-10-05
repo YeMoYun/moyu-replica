@@ -52,6 +52,14 @@ test('ordinary opening resets appearance through its controller but preserves bo
   assert.deepEqual(win.getBounds(),{x:2160,y:100,width:800,height:600})
 })
 
+test('windows defined as topmost by default restore that pin instead of false',()=>{
+  const win=fakeWindow(),calls=[]
+  opening.normalizeNewFeatureWindow({kind:'standard',key:'weRead',win,screen,topmost:true,
+    windowControls:{setOpacity:()=>{},setTopmost:(...args)=>calls.push(args),setAutoHide:()=>{}}})
+  assert.deepEqual(calls,[['weRead',true]])
+  assert.deepEqual(win.getBounds(),{x:2160,y:100,width:800,height:600})
+})
+
 test('advertisement and chat openings reset only their supported native appearance',()=>{
   const ad=fakeWindow(),chat=fakeWindow(),adCalls=[]
   opening.normalizeNewFeatureWindow({kind:'ad',key:'douyin',win:ad,screen,adWindowControls:{setOpacity:(...args)=>adCalls.push(args)}})

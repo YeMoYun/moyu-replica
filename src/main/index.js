@@ -182,7 +182,8 @@ function openRoute(key, route, opts = {}) {
   }
   if (key !== 'main') normalizeNewFeatureWindow({
     kind: Object.hasOwn(AD_MODES,key) ? 'ad' : tryChatContext(key) ? 'chat' : 'standard',
-    key, win, screen, windowControls, adWindowControls
+    key, win, screen, windowControls, adWindowControls,
+    topmost: !!opts.alwaysOnTop
   })
   return win
 }

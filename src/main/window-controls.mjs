@@ -1,3 +1,7 @@
+// Windows 上默认 floating 层级会被 Electron 主动排在任务栏之后；置顶必须使用
+// screen-saver 层级，窗口与任务栏重叠时才能显示在任务栏上方。
+const TOPMOST_LEVEL = 'screen-saver'
+
 const opacityValue = (value) => {
   const number = Number(value)
   if (!Number.isFinite(number)) throw new Error('透明度必须是有效数值')
@@ -125,7 +129,7 @@ export function createWindowController({ windows, store, screen, setInterval: st
     const bounds = saved.bounds ?? store.get(`${key}.windowBounds`) ?? store.get(`${key}.bounds`) ?? legacyBounds
     if (bounds && ['x','y','width','height'].every((prop) => Number.isFinite(bounds[prop]))) window.setBounds(fitBounds(bounds, screen.getAllDisplays()))
     record.normalBounds = window.getBounds()
-    window.setAlwaysOnTop(!!record.alwaysOnTop)
+    window.setAlwaysOnTop(!!record.alwaysOnTop, TOPMOST_LEVEL)
     render(key)
     const saveBounds = () => {
       try {
@@ -145,7 +149,7 @@ export function createWindowController({ windows, store, screen, setInterval: st
     updateTimer()
   }
   function setOpacity(key, value) { save(key, { opacity: opacityValue(value) }); render(key); return state(key) }
-  function setTopmost(key, enabled) { save(key, { alwaysOnTop: !!enabled }); windowFor(key).setAlwaysOnTop(!!enabled); notify(key); return state(key) }
+  function setTopmost(key, enabled) { save(key, { alwaysOnTop: !!enabled }); windowFor(key).setAlwaysOnTop(!!enabled, TOPMOST_LEVEL); notify(key); return state(key) }
   function setFullscreen(key, enabled) {
     const record = recordFor(key)
     const window = windowFor(key)

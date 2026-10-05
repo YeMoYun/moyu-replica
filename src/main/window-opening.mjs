@@ -21,7 +21,7 @@ export function centerWindowOnActiveDisplay(win,screen){
   return bounds
 }
 
-export function normalizeNewFeatureWindow({kind,key,win,screen,windowControls,adWindowControls}){
+export function normalizeNewFeatureWindow({kind,key,win,screen,windowControls,adWindowControls,topmost}){
   if(kind==='ad'){
     adWindowControls.setOpacity(key,1)
     win.setAlwaysOnTop(false)
@@ -30,7 +30,7 @@ export function normalizeNewFeatureWindow({kind,key,win,screen,windowControls,ad
     win.setAlwaysOnTop(false)
   }else{
     windowControls.setOpacity(key,1)
-    windowControls.setTopmost(key,false)
+    windowControls.setTopmost(key,!!topmost)
     windowControls.setAutoHide(key,false)
   }
   return centerWindowOnActiveDisplay(win,screen)
