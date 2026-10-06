@@ -6,7 +6,7 @@ const view = () => fs.readFileSync(new URL('../src/renderer/src/views/CustomWebp
 
 test('custom webpage window uses the unified video toolbar controls', () => {
   const source = view()
-  for (const action of ['hide-bar', 'topmost', 'close', 'reload', 'help', 'zoom', 'style', 'opacity', 'auto-hide', 'show-bar']) {
+  for (const action of ['hide-bar', 'topmost', 'close', 'reload', 'help', 'zoom', 'style', 'web-transparent', 'opacity', 'auto-hide', 'show-bar']) {
     assert.ok(source.includes(`data-action="${action}"`), action)
   }
   assert.ok(source.includes('class="addr"'), 'custom navigation keeps the address input')
@@ -25,4 +25,11 @@ test('custom webpage persists navigation, zoom and style preferences', () => {
   assert.match(source, /insertCSS/)
   assert.match(source, /removeInsertedCSS/)
   assert.match(source, /setZoomFactor/)
+})
+test('web transparency strips page background while keeping the font choice', () => {
+  const source = view()
+  assert.match(source, /pageTransparent/)
+  assert.match(source, /background:transparent !important/)
+  assert.match(source, /toggleTransparent/)
+  assert.match(source, /styleSaved\.value\?`color:/)
 })

@@ -8,6 +8,7 @@
       <symbol id="cp-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 8a3 3 0 0 1 6 1c0 2-3 2-3 4m0 3h.01"/></symbol>
       <symbol id="cp-zoom" viewBox="0 0 24 24"><path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6"/></symbol>
       <symbol id="cp-style" viewBox="0 0 24 24"><path d="m3 20 6-16h3l6 16M6 14h9m5-9v14"/></symbol>
+      <symbol id="cp-transparent" viewBox="0 0 24 24"><path d="M3 3h18v18H3Zm4 14 5-10 5 10m-8-4h6M3 8h4m10 8h4"/></symbol>
       <symbol id="cp-drop" viewBox="0 0 24 24"><path d="M12 3c-3 5-7 8-7 12a7 7 0 0 0 14 0c0-4-4-7-7-12Z"/></symbol>
       <symbol id="cp-auto-hide" viewBox="0 0 24 24"><path d="M10 3H3v18h18v-7M13 3l8 6-5 1-2 5Z"/></symbol>
     </defs></svg>
@@ -22,6 +23,7 @@
         <div class="drag-space"></div>
         <button class="icon-button zoom-icon" data-action="zoom" title="网页缩放" aria-label="网页缩放" @click="openDialog('zoom')"><svg><use href="#cp-zoom"/></svg></button>
         <button class="icon-button" data-action="style" title="文字与背景颜色" aria-label="文字与背景颜色" @click="openDialog('style')"><svg><use href="#cp-style"/></svg></button>
+        <button class="icon-button" :class="{active:pageTransparent}" data-action="web-transparent" :title="pageTransparent?'网页透明：已开启（点击恢复不透明）':'网页透明：去掉网页背景'" aria-label="设置网页透明" :aria-pressed="pageTransparent" @click="toggleTransparent()"><svg><use href="#cp-transparent"/></svg></button>
         <button class="icon-button" data-action="opacity" title="窗口透明度" aria-label="窗口透明度" @click="openDialog('opacity')"><svg><use href="#cp-drop"/></svg></button>
         <button class="icon-button" :class="{active:nativeState.autoHideEnabled}" data-action="auto-hide" :title="nativeState.autoHideEnabled?'鼠标移出隐藏：已开启':'鼠标移出隐藏：已关闭'" aria-label="鼠标移出隐藏" :aria-pressed="nativeState.autoHideEnabled" :disabled="nativeBusy" @click="nativeOperation(()=>control.setAutoHide(!nativeState.autoHideEnabled))"><svg><use href="#cp-auto-hide"/></svg></button>
       </template>
@@ -42,12 +44,12 @@
             <label class="settings-row"><span>文字颜色</span><input data-setting="font-color" aria-label="文字颜色" type="color" :value="fontColor" @input="setStyle()"/></label>
             <label class="settings-row"><span>背景颜色</span><input data-setting="background" aria-label="背景颜色" type="color" :value="bg" @input="setStyle()"/></label>
             <button class="auto-fit" data-action="reset-style" :disabled="busy" @click="resetStyle">恢复默认外观</button>
-            <p class="hint">颜色立即应用到当前网页并记忆；换页后自动重新应用。</p>
+            <p class="hint">颜色立即应用到当前网页并记忆；换页后自动重新应用。开启网页透明时背景强制透明，仅保留文字颜色。</p>
           </template>
           <label v-else-if="dialog==='opacity'" class="settings-row"><span>窗口透明度</span><input data-setting="opacity" aria-label="窗口透明度" type="range" min="0.1" max="1" step="0.01" :value="nativeState.opacity" @input="setOpacity(Number($event.target.value))"/><output>{{Math.round(nativeState.opacity*100)}}%</output></label>
           <div v-else class="help-content">
             <p>地址栏输入网址回车前往；眼睛隐藏/恢复操作栏，图钉置顶，中间空白区域可拖动窗口。</p>
-            <p>蓝色四角图标调节网页比例，画板图标改写网页文字与背景颜色，水滴调节窗口透明度，最右侧开启鼠标移出隐藏。</p>
+            <p>蓝色四角图标调节网页比例，画板图标改写网页文字与背景颜色，方框图标开启网页透明（去掉网页背景，桌面从文字后透出），水滴调节窗口透明度，最右侧开启鼠标移出隐藏。</p>
             <dl class="shortcut-list"><template v-for="[key,label] in [['boss','老板键'],['opacityUp','透明度增加'],['opacityDown','透明度减少']]" :key="key"><dt>{{label}}</dt><dd>{{shortcutLabels[key]||'未启用'}}</dd></template></dl>
             <p>以上为配置值，若系统拒绝注册，首页会显示错误，可在“快捷键设置”中修改。</p>
           </div>
@@ -63,7 +65,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 const wv=ref(null),showBar=ref(true),dialog=ref(''),dialogElement=ref(null),error=ref(''),address=ref('')
 const initialized=ref(false),pending=ref(0),nativeBusy=ref(false)
 const busy=computed(()=>pending.value>0)
-const zoom=ref(1),fontColor=ref('#ffffff'),bg=ref('#000000')
+const zoom=ref(1),fontColor=ref('#ffffff'),bg=ref('#000000'),pageTransparent=ref(false),styleSaved=ref(false)
 const nativeState=reactive({opacity:1,alwaysOnTop:false,autoHideEnabled:false,hidden:false})
 const shortcutLabels=reactive({})
 const control=window.windowControl,subscriptions=[]
@@ -106,23 +108,27 @@ function setZoom(value){
   try{wv.value?.setZoomFactor(zoom.value)}catch{}
   try{window.settingApi?.setSetting('customWebpage.zoom',zoom.value)}catch{}
 }
-async function applyStyle(){
+// 网页透明：去掉网页自身背景让桌面透出（与窗口透明度相互独立）；
+// 用户改过样式后，透明时仅保留文字颜色，不透明时应用文字与背景。
+function pageCss(){
+  const color=styleSaved.value?`color:${fontColor.value} !important;`:''
+  if(pageTransparent.value)return `html, body, *{background:transparent !important;background-image:none !important;${color}}`
+  return styleSaved.value?`*, *::before, *::after{${color}background-color:${bg.value} !important;background-image:none !important}`:null
+}
+async function applyPageCss(){
   if(!wv.value)return
-  const css=`*, *::before, *::after{color:${fontColor.value} !important;background-color:${bg.value} !important;background-image:none !important}`
+  const css=pageCss()
   try{
     if(styleKey){try{await wv.value.removeInsertedCSS(styleKey)}catch{}styleKey=null}
-    styleKey=await wv.value.insertCSS(css)
+    if(css)styleKey=await wv.value.insertCSS(css)
   }catch{}
 }
-function setStyle(){
-  try{localStorage.setItem('moyu:customPageStyle',JSON.stringify({fontColor:fontColor.value,bg:bg.value}))}catch{}
-  applyStyle()
-}
+function saveStyle(){try{localStorage.setItem('moyu:customPageStyle',JSON.stringify({fontColor:fontColor.value,bg:bg.value,transparent:pageTransparent.value}))}catch{}}
+function setStyle(){styleSaved.value=true;saveStyle();applyPageCss()}
+function toggleTransparent(){pageTransparent.value=!pageTransparent.value;saveStyle();applyPageCss()}
 async function resetStyle(){
-  fontColor.value='#ffffff';bg.value='#000000'
-  try{localStorage.removeItem('moyu:customPageStyle')}catch{}
-  if(wv.value&&styleKey){try{await wv.value.removeInsertedCSS(styleKey)}catch{}}
-  styleKey=null
+  fontColor.value='#ffffff';bg.value='#000000';styleSaved.value=false
+  saveStyle();applyPageCss()
 }
 async function openDialog(name){
   dialogTrigger=document.activeElement;dialog.value=name
@@ -147,7 +153,7 @@ onMounted(async()=>{
   subscriptions.push(control.onState(receiveState),control.onError(message=>{error.value=message}))
   try{
     const saved=JSON.parse(localStorage.getItem('moyu:customPageStyle')||'null')
-    if(saved){fontColor.value=saved.fontColor||fontColor.value;bg.value=saved.bg||bg.value}
+    if(saved){fontColor.value=saved.fontColor||fontColor.value;bg.value=saved.bg||bg.value;pageTransparent.value=!!saved.transparent;styleSaved.value=!!(saved.fontColor||saved.bg)}
     const savedZoom=await window.settingApi.getSetting('customWebpage.zoom')
     if(Number.isFinite(Number(savedZoom)))zoom.value=Math.min(1,Math.max(.2,Number(savedZoom)))
     Object.assign(nativeState,await control.getState())
@@ -157,7 +163,7 @@ onMounted(async()=>{
 onUnmounted(()=>{disposed=true;window.removeEventListener('keydown',keydown);subscriptions.forEach(unsubscribe=>unsubscribe())})
 function domReady(){
   try{wv.value?.setZoomFactor(zoom.value)}catch{}
-  applyStyle()
+  applyPageCss()
 }
 </script>
 <style scoped>
