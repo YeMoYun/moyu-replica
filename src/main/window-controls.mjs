@@ -84,8 +84,15 @@ export function createWindowController({ windows, store, screen, liveResize, set
     for (const [key, record] of states) {
       const window = windows.get(key)
       if (!window || window.isDestroyed() || !window.isVisible()) continue
+      // 边缘缩放拖拽期间冻结自动隐藏：光标贴合在边缘上会被误判为移出，
+      // 且隐藏时的忽略鼠标输入会掐断进行中的拖拽。
+      if (record.liveResizing) {
+        if (record.autoHidden) { record.autoHidden = false; try { render(key) } catch (error) { report(key, error) } }
+        continue
+      }
       const bounds = window.getBounds()
-      const outside = cursor.x < bounds.x || cursor.y < bounds.y || cursor.x >= bounds.x + bounds.width || cursor.y >= bounds.y + bounds.height
+      // 压在边缘上的光标算作在窗口内，避免悬停缩放手柄时反复触发隐藏。
+      const outside = cursor.x < bounds.x || cursor.y < bounds.y || cursor.x > bounds.x + bounds.width || cursor.y > bounds.y + bounds.height
       if (record.autoHideEnabled && record.autoHidden !== outside) {
         record.autoHidden = outside
         try { render(key) } catch (error) { report(key, error) }
