@@ -22,7 +22,7 @@
         <button class="icon-button" data-action="opacity" title="窗口透明度" aria-label="窗口透明度" @click="openDialog('opacity')"><svg><use href="#dy-drop"/></svg></button>
         <button class="icon-button" :class="{active:nativeState.autoHideEnabled}" data-action="auto-hide" :title="nativeState.autoHideEnabled?'鼠标移出隐藏：已开启':'鼠标移出隐藏：已关闭'" aria-label="鼠标移出隐藏" :aria-pressed="nativeState.autoHideEnabled" :disabled="nativeBusy" @click="nativeOperation(()=>control.setAutoHide(!nativeState.autoHideEnabled))"><svg><use href="#dy-auto-hide"/></svg></button>
       </template>
-      <template v-else><button class="icon-button recovery-eye" data-action="show-bar" title="显示操作栏" aria-label="显示操作栏" @click="showBar=true"><svg><use href="#dy-eye"/></svg></button><div class="drag-space"></div></template>
+      <template v-else><button class="icon-button recovery-eye" data-action="show-bar" title="显示操作栏" aria-label="显示操作栏" @click="showBar=true"><svg><use href="#dy-eye"/></svg></button><div class="drag-grip" title="拖动窗口"></div><div class="drag-space"></div></template>
     </div>
     <div v-if="error" class="error-message" role="alert">{{error}}<button title="关闭提示" aria-label="关闭提示" @click="error=''">×</button></div>
     <webview v-if="initialized" ref="wv" :src="DOUYIN_HOME" class="douyin-webview" :allowpopups="false" @dom-ready="domReady" @did-start-navigation="navigationStarted" @did-navigate-in-page="inPageNavigation" @did-fail-load="loadFailed"/>
@@ -98,12 +98,12 @@ onUnmounted(()=>{disposed=true;clearTimeout(resizeTimer);cancelAnimationFrame(la
 <style scoped>
 .douyin-window{height:100%;display:flex;flex-direction:column;background:transparent;color:#fff;position:relative;overflow:hidden}
 .icon-definitions{position:absolute;width:0;height:0;overflow:hidden}
-.toolbar{height:34px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:#1a202c;border-bottom:1px solid #4a5568;box-sizing:border-box;user-select:none}
+.toolbar{height:34px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:#1a202c;border-bottom:1px solid #4a5568;box-sizing:border-box;user-select:none;-webkit-app-region:drag}
 .toolbar-hidden{background:transparent;border-bottom-color:transparent}
 .icon-button{width:20px;height:24px;border:0;padding:0;background:none;color:#fff;display:inline-flex;align-items:center;justify-content:center;flex:none;cursor:pointer;-webkit-app-region:no-drag}
 .icon-button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .icon-button:hover,.recovery-eye:hover{color:#ef4444}.icon-button.active,.zoom-icon{color:#60a5fa}.icon-button:disabled{opacity:.4;cursor:default}
-.drag-space{height:100%;flex:1;min-width:0;-webkit-app-region:drag}.recovery-eye{color:white}
+.drag-space{height:100%;flex:1;min-width:0;-webkit-app-region:drag}.drag-grip{width:14px;height:16px;flex:none;align-self:center;-webkit-app-region:drag;cursor:move;border-radius:3px;background-image:radial-gradient(circle,rgba(255,255,255,.45) 1px,transparent 1.3px);background-size:5px 5px;background-position:center;opacity:.7}.recovery-eye{color:white}
 .douyin-webview{width:100%;flex:1;min-height:0;min-width:0;background:transparent}
 .error-message{position:absolute;top:38px;left:8px;right:8px;z-index:30;background:#7f1d1d;color:#fff;padding:8px 26px 8px 8px;border-radius:4px;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
 .error-message button{position:absolute;right:5px;top:5px;border:0;background:none;color:white;cursor:pointer}

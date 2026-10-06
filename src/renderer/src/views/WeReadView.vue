@@ -29,8 +29,7 @@
         <button class="more-button" data-action="more" :aria-expanded="showMore" @click="showMore=!showMore">{{showMore?'收起':'更多'}}</button>
       </template>
       <template v-else>
-        <button class="icon-button recovery-eye" data-action="show-bar" title="显示操作栏" aria-label="显示操作栏" @click="showBar=true"><svg><use href="#wr-eye"/></svg></button>
-        <div class="drag-space"></div>
+        <button class="icon-button recovery-eye" data-action="show-bar" title="显示操作栏" aria-label="显示操作栏" @click="showBar=true"><svg><use href="#wr-eye"/></svg></button><div class="drag-grip" title="拖动窗口"></div><div class="drag-space"></div>
       </template>
     </div>
     <div v-if="showBar&&showMore" class="more-panel" aria-label="更多阅读操作">
@@ -125,7 +124,7 @@ onUnmounted(()=>{
 <style scoped>
 .weread-window{height:100%;display:flex;flex-direction:column;background:transparent;color:#fff;position:relative;overflow:hidden}
 .icon-definitions{position:absolute;width:0;height:0;overflow:hidden}
-.toolbar{width:100%;height:30px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:#1a202c;border-bottom:1px solid #4a5568;box-sizing:border-box;user-select:none}
+.toolbar{width:100%;height:30px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:#1a202c;border-bottom:1px solid #4a5568;box-sizing:border-box;user-select:none;-webkit-app-region:drag}
 .toolbar-hidden{background:transparent;border-bottom-color:rgba(255,255,255,.1)}
 .icon-button,.more-button{padding:0;border:0;background:transparent;color:#fff;cursor:pointer;-webkit-app-region:no-drag;flex:none}
 .icon-button{height:22px;width:20px;display:inline-flex;align-items:center;justify-content:center}
@@ -135,7 +134,7 @@ onUnmounted(()=>{
 .icon-button:disabled{opacity:.45;cursor:default}
 .reader-control{font-size:13px;font-weight:600}
 .more-button{font-size:13px;white-space:nowrap;padding:4px 0}
-.drag-space{height:100%;flex:1;min-width:8px;-webkit-app-region:drag}
+.drag-space{height:100%;flex:1;min-width:8px;-webkit-app-region:drag}.drag-grip{width:14px;height:16px;flex:none;align-self:center;-webkit-app-region:drag;cursor:move;border-radius:3px;background-image:radial-gradient(circle,rgba(255,255,255,.45) 1px,transparent 1.3px);background-size:5px 5px;background-position:center;opacity:.7}
 .recovery-eye{color:white}
 .more-panel{position:absolute;right:0;top:30px;z-index:20;background:#1a202c;display:flex;gap:8px;padding:5px 10px;border:1px solid #4a5568}
 .reading-webview{width:100%;flex:1;min-height:0;background:transparent}
