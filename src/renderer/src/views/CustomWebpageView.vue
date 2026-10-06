@@ -43,7 +43,6 @@
           <template v-else-if="dialog==='style'">
             <label class="settings-row"><span>文字颜色</span><input data-setting="font-color" aria-label="文字颜色" type="color" :value="fontColor" @input="setStyle()"/></label>
             <label class="settings-row"><span>背景颜色</span><input data-setting="background" aria-label="背景颜色" type="color" :value="bg" @input="setStyle()"/></label>
-            <label class="settings-row"><input type="checkbox" data-setting="scrollbar" :checked="scrollbarHidden" @change="setScrollbar($event.target.checked)"/><span>隐藏滚动条</span></label>
             <button class="auto-fit" data-action="reset-style" :disabled="busy" @click="resetStyle">恢复默认外观</button>
             <p class="hint">颜色立即应用到当前网页并记忆；换页后自动重新应用。开启网页透明时背景强制透明，仅保留文字颜色。</p>
           </template>
@@ -66,7 +65,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 const wv=ref(null),showBar=ref(true),dialog=ref(''),dialogElement=ref(null),error=ref(''),address=ref('')
 const initialized=ref(false),pending=ref(0),nativeBusy=ref(false)
 const busy=computed(()=>pending.value>0)
-const zoom=ref(1),fontColor=ref('#ffffff'),bg=ref('#000000'),pageTransparent=ref(false),styleSaved=ref(false),scrollbarHidden=ref(true)
+const zoom=ref(1),fontColor=ref('#ffffff'),bg=ref('#000000'),pageTransparent=ref(false),styleSaved=ref(false)
 const nativeState=reactive({opacity:1,alwaysOnTop:false,autoHideEnabled:false,hidden:false})
 const shortcutLabels=reactive({})
 const control=window.windowControl,subscriptions=[]
@@ -112,12 +111,9 @@ function setZoom(value){
 // 网页透明：去掉网页自身背景让桌面透出（与窗口透明度相互独立）；
 // 用户改过样式后，透明时仅保留文字颜色，不透明时应用文字与背景。
 function pageCss(){
-  const parts=[]
-  if(scrollbarHidden.value)parts.push('::-webkit-scrollbar{display:none !important}')
   const color=styleSaved.value?`color:${fontColor.value} !important;`:''
-  if(pageTransparent.value)parts.push(`html, body, *{background:transparent !important;background-image:none !important;${color}}`)
-  else if(styleSaved.value)parts.push(`*, *::before, *::after{${color}background-color:${bg.value} !important;background-image:none !important}`)
-  return parts.join('\n')||null
+  if(pageTransparent.value)return `html, body, *{background:transparent !important;background-image:none !important;${color}}`
+  return styleSaved.value?`*, *::before, *::after{${color}background-color:${bg.value} !important;background-image:none !important}`:null
 }
 async function applyPageCss(){
   if(!wv.value)return
@@ -127,10 +123,9 @@ async function applyPageCss(){
     if(css)styleKey=await wv.value.insertCSS(css)
   }catch{}
 }
-function saveStyle(){try{localStorage.setItem('moyu:customPageStyle',JSON.stringify({fontColor:fontColor.value,bg:bg.value,transparent:pageTransparent.value,scrollbarHidden:scrollbarHidden.value}))}catch{}}
+function saveStyle(){try{localStorage.setItem('moyu:customPageStyle',JSON.stringify({fontColor:fontColor.value,bg:bg.value,transparent:pageTransparent.value}))}catch{}}
 function setStyle(){styleSaved.value=true;saveStyle();applyPageCss()}
 function toggleTransparent(){pageTransparent.value=!pageTransparent.value;saveStyle();applyPageCss()}
-function setScrollbar(value){scrollbarHidden.value=!!value;saveStyle();applyPageCss()}
 async function resetStyle(){
   fontColor.value='#ffffff';bg.value='#000000';styleSaved.value=false
   saveStyle();applyPageCss()
@@ -158,7 +153,7 @@ onMounted(async()=>{
   subscriptions.push(control.onState(receiveState),control.onError(message=>{error.value=message}))
   try{
     const saved=JSON.parse(localStorage.getItem('moyu:customPageStyle')||'null')
-    if(saved){fontColor.value=saved.fontColor||fontColor.value;bg.value=saved.bg||bg.value;pageTransparent.value=!!saved.transparent;styleSaved.value=!!(saved.fontColor||saved.bg);if(typeof saved.scrollbarHidden==='boolean')scrollbarHidden.value=saved.scrollbarHidden}
+    if(saved){fontColor.value=saved.fontColor||fontColor.value;bg.value=saved.bg||bg.value;pageTransparent.value=!!saved.transparent;styleSaved.value=!!(saved.fontColor||saved.bg)}
     const savedZoom=await window.settingApi.getSetting('customWebpage.zoom')
     if(Number.isFinite(Number(savedZoom)))zoom.value=Math.min(1,Math.max(.2,Number(savedZoom)))
     Object.assign(nativeState,await control.getState())
