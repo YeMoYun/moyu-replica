@@ -6,7 +6,7 @@ const view = () => fs.readFileSync(new URL('../src/renderer/src/views/CustomWebp
 
 test('custom webpage window uses the unified video toolbar controls', () => {
   const source = view()
-  for (const action of ['hide-bar', 'topmost', 'close', 'reload', 'help', 'zoom', 'style', 'web-transparent', 'opacity', 'auto-hide', 'show-bar']) {
+  for (const action of ['hide-bar', 'topmost', 'close', 'reload', 'help', 'zoom', 'style', 'scrollbar', 'web-transparent', 'opacity', 'auto-hide', 'show-bar']) {
     assert.ok(source.includes(`data-action="${action}"`), action)
   }
   assert.ok(source.includes('class="addr"'), 'custom navigation keeps the address input')
@@ -22,8 +22,8 @@ test('custom webpage persists navigation, zoom and style preferences', () => {
   const source = view()
   assert.match(source, /moyu:lastUrl:customWebpage/)
   assert.match(source, /customWebpage\.zoom/)
-  assert.match(source, /insertCSS/)
-  assert.match(source, /removeInsertedCSS/)
+  assert.match(source, /__moyu_custom_page_css__/)
+  assert.match(source, /el\.textContent=/)
   assert.match(source, /setZoomFactor/)
 })
 test('web transparency strips page background while keeping the font choice', () => {
@@ -32,4 +32,20 @@ test('web transparency strips page background while keeping the font choice', ()
   assert.match(source, /background:transparent !important/)
   assert.match(source, /toggleTransparent/)
   assert.match(source, /styleSaved\.value\?`color:/)
+})
+test('color pickers feed the refs and the style element is idempotent', () => {
+  const source = view()
+  // 取色器的值必须真正写入引用（此前单向绑定导致颜色永远无法应用/保存）。
+  assert.match(source, /setFontColor\(\$event\.target\.value\)/)
+  assert.match(source, /setBgColor\(\$event\.target\.value\)/)
+  assert.match(source, /fontColor\.value=value/)
+  assert.match(source, /bg\.value=value/)
+  assert.match(source, /el\.textContent=/)
+})
+test('scrollbar visibility is a toolbar toggle persisted with the style prefs', () => {
+  const source = view()
+  assert.match(source, /data-action="scrollbar"/)
+  assert.match(source, /setScrollbar\(!scrollbarHidden\)/)
+  assert.match(source, /-webkit-scrollbar\{display:none !important\}/)
+  assert.match(source, /scrollbarHidden:scrollbarHidden\.value/)
 })

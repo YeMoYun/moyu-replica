@@ -8,6 +8,7 @@
       <symbol id="cp-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 8a3 3 0 0 1 6 1c0 2-3 2-3 4m0 3h.01"/></symbol>
       <symbol id="cp-zoom" viewBox="0 0 24 24"><path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6"/></symbol>
       <symbol id="cp-style" viewBox="0 0 24 24"><path d="m3 20 6-16h3l6 16M6 14h9m5-9v14"/></symbol>
+      <symbol id="cp-scrollbar" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M15 7v10"/></symbol>
       <symbol id="cp-transparent" viewBox="0 0 24 24"><path d="M3 3h18v18H3Zm4 14 5-10 5 10m-8-4h6M3 8h4m10 8h4"/></symbol>
       <symbol id="cp-drop" viewBox="0 0 24 24"><path d="M12 3c-3 5-7 8-7 12a7 7 0 0 0 14 0c0-4-4-7-7-12Z"/></symbol>
       <symbol id="cp-auto-hide" viewBox="0 0 24 24"><path d="M10 3H3v18h18v-7M13 3l8 6-5 1-2 5Z"/></symbol>
@@ -22,6 +23,7 @@
         <input v-model="address" class="addr" placeholder="输入网址，回车前往" aria-label="网址" @keydown.enter="nav" />
         <div class="drag-space"></div>
         <button class="icon-button zoom-icon" data-action="zoom" title="网页缩放" aria-label="网页缩放" @click="openDialog('zoom')"><svg><use href="#cp-zoom"/></svg></button>
+        <button class="icon-button" :class="{active:scrollbarHidden}" data-action="scrollbar" :title="scrollbarHidden?'滚动条：已隐藏（点击显示）':'滚动条：已显示（点击隐藏）'" aria-label="显示或隐藏滚动条" :aria-pressed="scrollbarHidden" @click="setScrollbar(!scrollbarHidden)"><svg><use href="#cp-scrollbar"/></svg></button>
         <button class="icon-button" data-action="style" title="文字与背景颜色" aria-label="文字与背景颜色" @click="openDialog('style')"><svg><use href="#cp-style"/></svg></button>
         <button class="icon-button" :class="{active:pageTransparent}" data-action="web-transparent" :title="pageTransparent?'网页透明：已开启（点击恢复不透明）':'网页透明：去掉网页背景'" aria-label="设置网页透明" :aria-pressed="pageTransparent" @click="toggleTransparent()"><svg><use href="#cp-transparent"/></svg></button>
         <button class="icon-button" data-action="opacity" title="窗口透明度" aria-label="窗口透明度" @click="openDialog('opacity')"><svg><use href="#cp-drop"/></svg></button>
@@ -41,15 +43,15 @@
             <p class="hint">缩放立即生效并记忆，重新打开后保持。</p>
           </template>
           <template v-else-if="dialog==='style'">
-            <label class="settings-row"><span>文字颜色</span><input data-setting="font-color" aria-label="文字颜色" type="color" :value="fontColor" @input="setStyle()"/></label>
-            <label class="settings-row"><span>背景颜色</span><input data-setting="background" aria-label="背景颜色" type="color" :value="bg" @input="setStyle()"/></label>
+            <label class="settings-row"><span>文字颜色</span><input data-setting="font-color" aria-label="文字颜色" type="color" :value="fontColor" @input="setFontColor($event.target.value)"/></label>
+            <label class="settings-row"><span>背景颜色</span><input data-setting="background" aria-label="背景颜色" type="color" :value="bg" @input="setBgColor($event.target.value)"/></label>
             <button class="auto-fit" data-action="reset-style" :disabled="busy" @click="resetStyle">恢复默认外观</button>
             <p class="hint">颜色立即应用到当前网页并记忆；换页后自动重新应用。开启网页透明时背景强制透明，仅保留文字颜色。</p>
           </template>
           <label v-else-if="dialog==='opacity'" class="settings-row"><span>窗口透明度</span><input data-setting="opacity" aria-label="窗口透明度" type="range" min="0.1" max="1" step="0.01" :value="nativeState.opacity" @input="setOpacity(Number($event.target.value))"/><output>{{Math.round(nativeState.opacity*100)}}%</output></label>
           <div v-else class="help-content">
             <p>地址栏输入网址回车前往；眼睛隐藏/恢复操作栏，图钉置顶，中间空白区域可拖动窗口。</p>
-            <p>蓝色四角图标调节网页比例，画板图标改写网页文字与背景颜色，方框图标开启网页透明（去掉网页背景，桌面从文字后透出），水滴调节窗口透明度，最右侧开启鼠标移出隐藏。</p>
+            <p>蓝色四角图标调节网页比例，画板图标改写网页文字与背景颜色，竖条图标显示或隐藏滚动条，方框图标开启网页透明（去掉网页背景，桌面从文字后透出），水滴调节窗口透明度，最右侧开启鼠标移出隐藏。</p>
             <dl class="shortcut-list"><template v-for="[key,label] in [['boss','老板键'],['opacityUp','透明度增加'],['opacityDown','透明度减少']]" :key="key"><dt>{{label}}</dt><dd>{{shortcutLabels[key]||'未启用'}}</dd></template></dl>
             <p>以上为配置值，若系统拒绝注册，首页会显示错误，可在“快捷键设置”中修改。</p>
           </div>
@@ -65,12 +67,12 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 const wv=ref(null),showBar=ref(true),dialog=ref(''),dialogElement=ref(null),error=ref(''),address=ref('')
 const initialized=ref(false),pending=ref(0),nativeBusy=ref(false)
 const busy=computed(()=>pending.value>0)
-const zoom=ref(1),fontColor=ref('#ffffff'),bg=ref('#000000'),pageTransparent=ref(false),styleSaved=ref(false)
+const zoom=ref(1),fontColor=ref('#ffffff'),bg=ref('#000000'),pageTransparent=ref(false),styleSaved=ref(false),scrollbarHidden=ref(true)
 const nativeState=reactive({opacity:1,alwaysOnTop:false,autoHideEnabled:false,hidden:false})
 const shortcutLabels=reactive({})
 const control=window.windowControl,subscriptions=[]
 const dialogTitle=computed(()=>({zoom:'网页缩放',style:'网页样式',opacity:'窗口透明度',help:'自定义网站使用说明'}[dialog.value]||''))
-let disposed=false,styleKey=null,dialogTrigger=null,nativePending=0
+let disposed=false,dialogTrigger=null,nativePending=0
 const initialAddress=(()=>{try{return localStorage.getItem('moyu:lastUrl:customWebpage')||'https://www.baidu.com/'}catch{return 'https://www.baidu.com/'}})()
 address.value=initialAddress
 async function perform(operation,{silent=false}={}){
@@ -110,25 +112,39 @@ function setZoom(value){
 }
 // 网页透明：去掉网页自身背景让桌面透出（与窗口透明度相互独立）；
 // 用户改过样式后，透明时仅保留文字颜色，不透明时应用文字与背景。
+// 隐藏滚动条默认开启。所有图层串行应用，避免取色器高频事件下的插入/移除竞态。
 function pageCss(){
+  const parts=[]
+  if(scrollbarHidden.value)parts.push('::-webkit-scrollbar{display:none !important}')
   const color=styleSaved.value?`color:${fontColor.value} !important;`:''
-  if(pageTransparent.value)return `html, body, *{background:transparent !important;background-image:none !important;${color}}`
-  return styleSaved.value?`*, *::before, *::after{${color}background-color:${bg.value} !important;background-image:none !important}`:null
+  if(pageTransparent.value)parts.push(`html, body, *{background:transparent !important;background-image:none !important;${color}}`)
+  else if(styleSaved.value)parts.push(`*, *::before, *::after{${color}background-color:${bg.value} !important;background-image:none !important}`)
+  return parts.length?parts.join('\n'):null
 }
+// 幂等更新 guest 内固定 id 的 style 元素：无键值、无移除/重插竞态，
+// 高频取色事件下最后一次写入即最终结果。
 async function applyPageCss(){
+  try{window.__cssLog=(window.__cssLog||[]).concat(['call wv='+!!wv.value])}catch{}
   if(!wv.value)return
-  const css=pageCss()
+  const css=pageCss()||''
   try{
-    if(styleKey){try{await wv.value.removeInsertedCSS(styleKey)}catch{}styleKey=null}
-    if(css)styleKey=await wv.value.insertCSS(css)
-  }catch{}
+    await wv.value.executeJavaScript(`(()=>{
+      let el=document.getElementById('__moyu_custom_page_css__')
+      if(!el){el=document.createElement('style');el.id='__moyu_custom_page_css__';document.documentElement.appendChild(el)}
+      el.textContent=${JSON.stringify(css)}
+    })()`,true)
+    try{window.__cssLog=(window.__cssLog||[]).concat(['injected len='+css.length])}catch{}
+  }catch(error){try{window.__cssLog=(window.__cssLog||[]).concat(['FAILED:'+((error&&error.message)||error)])}catch{}}
 }
-function saveStyle(){try{localStorage.setItem('moyu:customPageStyle',JSON.stringify({fontColor:fontColor.value,bg:bg.value,transparent:pageTransparent.value}))}catch{}}
-function setStyle(){styleSaved.value=true;saveStyle();applyPageCss()}
-function toggleTransparent(){pageTransparent.value=!pageTransparent.value;saveStyle();applyPageCss()}
+function schedulePageCss(){applyPageCss().catch(()=>{})}
+function saveStyle(){try{localStorage.setItem('moyu:customPageStyle',JSON.stringify({fontColor:fontColor.value,bg:bg.value,transparent:pageTransparent.value,scrollbarHidden:scrollbarHidden.value}))}catch{}}
+function setFontColor(value){if(!/^#[0-9a-fA-F]{6}$/.test(value||''))return;fontColor.value=value;styleSaved.value=true;saveStyle();schedulePageCss()}
+function setBgColor(value){if(!/^#[0-9a-fA-F]{6}$/.test(value||''))return;bg.value=value;styleSaved.value=true;saveStyle();schedulePageCss()}
+function setScrollbar(value){try{window.__cssLog=(window.__cssLog||[]).concat(['setScrollbar '+value])}catch{};scrollbarHidden.value=!!value;saveStyle();schedulePageCss()}
+function toggleTransparent(){pageTransparent.value=!pageTransparent.value;saveStyle();schedulePageCss()}
 async function resetStyle(){
   fontColor.value='#ffffff';bg.value='#000000';styleSaved.value=false
-  saveStyle();applyPageCss()
+  saveStyle();schedulePageCss()
 }
 async function openDialog(name){
   dialogTrigger=document.activeElement;dialog.value=name
@@ -163,7 +179,7 @@ onMounted(async()=>{
 onUnmounted(()=>{disposed=true;window.removeEventListener('keydown',keydown);subscriptions.forEach(unsubscribe=>unsubscribe())})
 function domReady(){
   try{wv.value?.setZoomFactor(zoom.value)}catch{}
-  applyPageCss()
+  schedulePageCss()
 }
 </script>
 <style scoped>
