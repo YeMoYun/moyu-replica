@@ -136,7 +136,12 @@ async function applyPageCss(){
     try{window.__cssLog=(window.__cssLog||[]).concat(['injected len='+css.length])}catch{}
   }catch(error){try{window.__cssLog=(window.__cssLog||[]).concat(['FAILED:'+((error&&error.message)||error)])}catch{}}
 }
-function schedulePageCss(){applyPageCss().catch(()=>{})}
+let cssInFlight=null,cssQueued=false
+function schedulePageCss(){
+  if(cssInFlight){cssQueued=true;return cssInFlight}
+  cssInFlight=applyPageCss().catch(()=>{}).then(()=>{cssInFlight=null;if(cssQueued){cssQueued=false;schedulePageCss()}})
+  return cssInFlight
+}
 function saveStyle(){try{localStorage.setItem('moyu:customPageStyle',JSON.stringify({fontColor:fontColor.value,bg:bg.value,transparent:pageTransparent.value,scrollbarHidden:scrollbarHidden.value}))}catch{}}
 function setFontColor(value){if(!/^#[0-9a-fA-F]{6}$/.test(value||''))return;fontColor.value=value;styleSaved.value=true;saveStyle();schedulePageCss()}
 function setBgColor(value){if(!/^#[0-9a-fA-F]{6}$/.test(value||''))return;bg.value=value;styleSaved.value=true;saveStyle();schedulePageCss()}

@@ -148,6 +148,11 @@ function makeWindow(key, opts) {
       guest.session.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false))
     })
   }
+  win.webContents.on('render-process-gone', (_event, details) => {
+    if (details.reason === 'clean-exit' || win.isDestroyed() || win.webContents.isDestroyed()) return
+    console.error(`窗口 ${key} 渲染进程退出（${details.reason}），自动恢复`)
+    try { win.webContents.reload() } catch { /* 自愈失败则保持现状 */ }
+  })
   win.on('ready-to-show',()=>presentWindow(win))
   win.on('closed', () => { if (windows.get(key) === win) windows.delete(key) })
   return win

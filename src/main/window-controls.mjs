@@ -48,7 +48,13 @@ export function createWindowController({ windows, store, screen, liveResize, set
       hidden: record.autoHidden || record.bossHidden, bossHidden: record.bossHidden, bounds: window.getBounds()
     }
   }
-  function notify(key) { windowFor(key).webContents.send('window-control:state', state(key)) }
+  function notify(key) {
+    try {
+      const window = windows.get(key)
+      if (!window || window.isDestroyed() || window.webContents?.isDestroyed?.()) return
+      window.webContents.send('window-control:state', state(key))
+    } catch { /* 渲染帧已销毁时保持静默，等待自愈 */ }
+  }
   function save(key, patch = {}) {
     const record = recordFor(key)
     const next = { ...record, ...patch }
@@ -62,8 +68,11 @@ export function createWindowController({ windows, store, screen, liveResize, set
     const record = recordFor(key)
     const hidden = record.autoHidden || record.bossHidden
     const window = windowFor(key)
-    window.setIgnoreMouseEvents(hidden || record.pierceIgnoring, { forward: true })
-    window.setOpacity(hidden ? 0 : record.opacity)
+    if (window.isDestroyed() || window.webContents?.isDestroyed?.()) return
+    try {
+      window.setIgnoreMouseEvents(hidden || record.pierceIgnoring, { forward: true })
+      window.setOpacity(hidden ? 0 : record.opacity)
+    } catch { /* 渲染帧销毁瞬间原生调用可能失败 */ }
     notify(key)
   }
   function report(key, error) {
@@ -232,7 +241,15 @@ export function createWindowController({ windows, store, screen, liveResize, set
     return bossHidden
   }
   function close(key) { windowFor(key).close(); return true }
-  function restore(key) { const record = recordFor(key); record.bossHidden = false; record.autoHidden = false; windowFor(key).show(); render(key) }
+  function restore(key) {
+    const record = recordFor(key)
+    const window = windowFor(key)
+    if (window.isDestroyed() || window.webContents?.isDestroyed?.()) return
+    record.bossHidden = false
+    record.autoHidden = false
+    window.show()
+    render(key)
+  }
   function correctDisplays() {
     for (const [key, record] of states) {
       try {
